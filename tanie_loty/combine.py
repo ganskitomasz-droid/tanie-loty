@@ -18,9 +18,23 @@ def _best_by_day(fares: list[Fare], key) -> dict[tuple[str, str], Fare]:
 
 
 def _leg(f: Fare) -> dict:
-    return {"carrier": f.carrier, "from": f.origin, "to": f.dest, "date": f.date,
-            "time": f.time, "price": round(f.price), "orig": f"{f.price_orig:g} {f.currency}",
-            "url": f.url}
+    # Link do rezerwacji składa strona (oszczędza miejsce w results.json).
+    d = {"carrier": f.carrier, "from": f.origin, "to": f.dest, "date": f.date,
+         "time": f.time, "price": round(f.price)}
+    if f.currency != "PLN":
+        d["orig"] = f"{f.price_orig:g} {f.currency}"
+    return d
+
+
+def _best_per_day(cands: list[tuple], k: int) -> list[tuple]:
+    """Zostawia k najtańszych kandydatów dla każdej daty wylotu (c[1])."""
+    by_day: dict[str, list[tuple]] = defaultdict(list)
+    for c in cands:
+        by_day[c[1]].append(c)
+    out: list[tuple] = []
+    for lst in by_day.values():
+        out += heapq.nsmallest(k, lst, key=lambda c: c[0])
+    return out
 
 
 def combine(
@@ -31,9 +45,8 @@ def combine(
     nights_max: int = 5,
     openjaw_km: int = 350,
     max_total: float | None = None,
-    per_dest: int = 25,
-    per_pair: int = 4,
-    cap: int = 4000,
+    per_day: int = 2,
+    cap: int = 20000,
 ) -> dict[str, list[dict]]:
     O = set(origins)
     out_f = [f for f in fares if f.origin in O and f.dest not in O]
@@ -65,7 +78,7 @@ def combine(
                 total = f.price + r.price
                 if ok(total):
                     cands.append((total, f.date, n, f, r))
-        for total, _, n, f, r in heapq.nsmallest(per_dest, cands, key=lambda c: (c[0], c[1])):
+        for total, _, n, f, r in _best_per_day(cands, per_day):
             rt.append({"type": "rt", "dest": x, "back": x, "nights": n, "total": round(total),
                        "out": _leg(f), "ret": _leg(r)})
 
@@ -80,21 +93,21 @@ def combine(
                 near[x].append((y, km))
     oj: list[dict] = []
     for x, ys in near.items():
+        cands = []
         for y, km in ys:
-            cands = []
             for f in out_by_dest[x]:
                 for n, r in returns(y, f.date):
                     total = f.price + r.price
                     if ok(total):
-                        cands.append((total, f.date, n, f, r))
-            for total, _, n, f, r in heapq.nsmallest(per_pair, cands, key=lambda c: (c[0], c[1])):
-                oj.append({"type": "oj", "dest": x, "back": y, "km": round(km), "nights": n,
-                           "total": round(total), "out": _leg(f), "ret": _leg(r)})
+                        cands.append((total, f.date, n, f, r, y, km))
+        for total, _, n, f, r, y, km in _best_per_day(cands, per_day):
+            oj.append({"type": "oj", "dest": x, "back": y, "km": round(km), "nights": n,
+                       "total": round(total), "out": _leg(f), "ret": _leg(r)})
 
     # --- w jedną stronę --------------------------------------------------
     ow: list[dict] = []
     for x, outs in out_by_dest.items():
-        for f in heapq.nsmallest(10, outs, key=lambda f: (f.price, f.date)):
+        for f in outs:  # out_by_dest ma już najtańszy lot na każdy dzień
             if ok(f.price):
                 ow.append({"type": "ow", "dest": x, "total": round(f.price), "out": _leg(f)})
 

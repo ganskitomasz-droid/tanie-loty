@@ -28,6 +28,7 @@
   .filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;
              background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
   .filters label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 4px; }
+  .filters .reset { align-self: end; }
   .filters label.check { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); }
   input, select { font: inherit; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line);
                   background: var(--bg); color: var(--ink); min-width: 0; }
@@ -49,6 +50,7 @@
   .leg a:hover { text-decoration: underline; }
   .leg .lp { font-variant-numeric: tabular-nums; color: var(--muted); }
   .more { margin: 14px auto; display: block; }
+  .more[hidden] { display: none; }
   .empty { padding: 40px; text-align: center; color: var(--muted); }
   details { margin-top: 30px; color: var(--muted); font-size: 13px; }
   details pre { white-space: pre-wrap; background: var(--card); border: 1px solid var(--line);
@@ -76,6 +78,9 @@
     <label>Maks. cena (zł)<input id="f-max" type="number" min="0" step="10" placeholder="bez limitu"></label>
     <label class="rt-only">Noce od<select id="f-nmin"></select></label>
     <label class="rt-only">Noce do<select id="f-nmax"></select></label>
+    <label>Wylot od<input id="f-from" type="date"></label>
+    <label>Wylot do<input id="f-to" type="date"></label>
+    <label class="rt-only">Powrót najpóźniej<input id="f-retby" type="date"></label>
     <label>Miesiąc wylotu<select id="f-month"><option value="">wszystkie</option></select></label>
     <label>Wylot z<select id="f-orig"><option value="">wszystkie lotniska</option></select></label>
     <label>Przewoźnik<select id="f-car">
@@ -86,6 +91,7 @@
     <label>Sortuj<select id="f-sort"><option value="price">od najtańszych</option><option value="date">wg daty</option></select></label>
     <label class="check"><input id="f-weekend" type="checkbox"> Tylko weekendy</label>
     <label class="check"><input id="f-one" type="checkbox" checked> Jeden wynik na kierunek</label>
+    <button class="tab reset" id="f-reset" type="button">Wyczyść filtry</button>
   </div>
 
   <div class="count" id="count"></div>
@@ -107,12 +113,18 @@ const ap = c => (DATA.airports[c] || { code: c, city: c, country: "" });
 const city = c => { const a = ap(c); return a.city || a.name || c; };
 const esc = s => String(s ?? "").replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
 
+function bookUrl(l) {
+  return l.carrier === "Ryanair"
+    ? `https://www.ryanair.com/pl/pl/trip/flights/select?adults=1&teens=0&children=0&infants=0&dateOut=${l.date}&isConnectedFlight=false&isReturn=false&discount=0&originIata=${l.from}&destinationIata=${l.to}`
+    : `https://wizzair.com/pl-pl/booking/select-flight/${l.from}/${l.to}/${l.date}/null/1/0/0/null`;
+}
+
 function leg(l, label) {
   const cls = l.carrier === "Ryanair" ? "fr" : "wz";
   return `<div class="leg"><span class="chip ${cls}">${esc(l.carrier)}</span>
     <span>${label} <b>${esc(l.from)}</b> → <b>${esc(l.to)}</b>, ${fmtDay(l.date)}${l.time ? ", " + esc(l.time) : ""}</span>
-    <span class="lp">${l.price} zł${l.orig && !l.orig.endsWith("PLN") ? " (" + esc(l.orig) + ")" : ""}</span>
-    <a href="${esc(l.url)}" target="_blank" rel="noopener">Sprawdź ↗</a></div>`;
+    <span class="lp">${l.price} zł${l.orig ? " (" + esc(l.orig) + ")" : ""}</span>
+    <a href="${esc(bookUrl(l))}" target="_blank" rel="noopener">Sprawdź ↗</a></div>`;
 }
 
 function card(t) {
@@ -130,12 +142,16 @@ function card(t) {
 
 function filtered() {
   const max = +$("#f-max").value || Infinity, nmin = +$("#f-nmin").value, nmax = +$("#f-nmax").value;
+  const from = $("#f-from").value, to = $("#f-to").value, retby = $("#f-retby").value;
   const month = $("#f-month").value, orig = $("#f-orig").value, car = $("#f-car").value;
   const q = $("#f-q").value.trim().toLowerCase(), wk = $("#f-weekend").checked, one = $("#f-one").checked;
   let rows = DATA[tab].filter(t => {
     if (t.total > max) return false;
     if (t.ret && (t.nights < nmin || t.nights > nmax)) return false;
     if (month && !t.out.date.startsWith(month)) return false;
+    if (from && t.out.date < from) return false;
+    if (to && t.out.date > to) return false;
+    if (retby && t.ret && t.ret.date > retby) return false;
     if (orig && t.out.from !== orig) return false;
     if (car === "mix" && (!t.ret || t.out.carrier === t.ret.carrier)) return false;
     if (car && car !== "mix" && (t.out.carrier !== car || (t.ret && t.ret.carrier !== car))) return false;
@@ -178,6 +194,7 @@ function init(data) {
     $("#f-nmin").add(new Option(n, n)); $("#f-nmax").add(new Option(n, n));
   }
   $("#f-nmax").value = c.nights_max;
+  for (const id of ["#f-from", "#f-to", "#f-retby"]) { $(id).min = m.window[0]; $(id).max = m.window[1]; }
   c.origins.forEach(o => $("#f-orig").add(new Option(`${o} – ${city(o)}`, o)));
   const months = new Set(); ["rt", "oj", "ow"].forEach(k => data[k].forEach(t => months.add(t.out.date.slice(0, 7))));
   [...months].sort().forEach(mm => { const [y, mo] = mm.split("-"); $("#f-month").add(new Option(`${MON[+mo - 1]} ${y}`, mm)); });
@@ -193,6 +210,17 @@ document.querySelectorAll(".tab[data-t]").forEach(b => b.onclick = () => {
   render();
 });
 document.querySelectorAll(".filters input, .filters select").forEach(e => e.oninput = () => { shown = 60; render(); });
+$("#f-from").addEventListener("change", () => {
+  const f = $("#f-from").value, t = $("#f-to");
+  if (f && (!t.value || t.value < f)) { t.value = f; }
+  render();
+});
+$("#f-reset").onclick = () => {
+  document.querySelectorAll(".filters input[type=date], .filters input[type=number], .filters input[type=search]").forEach(e => e.value = "");
+  ["#f-month", "#f-orig", "#f-car"].forEach(id => $(id).value = "");
+  $("#f-nmin").selectedIndex = 0; $("#f-nmax").selectedIndex = $("#f-nmax").options.length - 1;
+  $("#f-weekend").checked = false; $("#f-one").checked = true; shown = 60; render();
+};
 $("#more").onclick = () => { shown += 60; render(); };
 
 fetch("results.json", { cache: "no-store" }).then(r => r.json()).then(init)

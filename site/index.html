@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tanie loty z Warszawy</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --card: #fff; --ink: #1d1d1b; --muted: #6b6a65; --line: #e4e2db;
+    --accent: #0b5cff; --fr: #073590; --wz: #c6007e; --good: #0a7a3d; --chip: #efede6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #131312; --card: #1d1d1b; --ink: #f1efe8; --muted: #9a988f; --line: #2f2e2a;
+            --accent: #6d9bff; --fr: #7ea2ff; --wz: #ff6fc4; --good: #4fd18b; --chip: #2a2926; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--ink); }
+  header { padding: 28px 20px 8px; max-width: 1100px; margin: 0 auto; }
+  h1 { margin: 0; font-size: 28px; letter-spacing: -.02em; }
+  .sub { color: var(--muted); margin-top: 4px; font-size: 14px; }
+  main { max-width: 1100px; margin: 0 auto; padding: 0 20px 60px; }
+  .tabs { display: flex; gap: 6px; margin: 18px 0 12px; flex-wrap: wrap; }
+  .tab { border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 8px 14px;
+         border-radius: 999px; cursor: pointer; font: inherit; }
+  .tab[aria-selected="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .tab small { opacity: .65; margin-left: 4px; }
+  .filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;
+             background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+  .filters label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 4px; }
+  .filters label.check { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); }
+  input, select { font: inherit; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line);
+                  background: var(--bg); color: var(--ink); min-width: 0; }
+  .count { color: var(--muted); font-size: 13px; margin: 14px 2px 8px; }
+  .list { display: flex; flex-direction: column; gap: 8px; }
+  .trip { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px;
+          display: grid; grid-template-columns: 110px 1fr; gap: 6px 18px; align-items: start; }
+  .price { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+  .price small { font-size: 13px; font-weight: 500; color: var(--muted); }
+  .dest { font-size: 17px; font-weight: 600; }
+  .dest .cc { color: var(--muted); font-weight: 400; }
+  .when { color: var(--muted); font-size: 14px; }
+  .legs { grid-column: 2; display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+  .leg { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 14px; }
+  .chip { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); font-weight: 600; }
+  .chip.fr { color: var(--fr); } .chip.wz { color: var(--wz); }
+  .chip.oj { color: var(--good); }
+  .leg a { color: var(--accent); text-decoration: none; margin-left: auto; white-space: nowrap; }
+  .leg a:hover { text-decoration: underline; }
+  .leg .lp { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .more { margin: 14px auto; display: block; }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+  details { margin-top: 30px; color: var(--muted); font-size: 13px; }
+  details pre { white-space: pre-wrap; background: var(--card); border: 1px solid var(--line);
+                padding: 10px; border-radius: 10px; }
+  @media (max-width: 600px) {
+    .trip { grid-template-columns: 1fr; }
+    .legs { grid-column: 1; }
+    .leg a { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Tanie loty z Warszawy</h1>
+  <div class="sub" id="sub">Wczytuję wyniki…</div>
+</header>
+<main>
+  <div class="tabs" role="tablist" id="tabs">
+    <button class="tab" role="tab" data-t="rt" aria-selected="true">W obie strony<small id="n-rt"></small></button>
+    <button class="tab" role="tab" data-t="oj" aria-selected="false">Open-jaw<small id="n-oj"></small></button>
+    <button class="tab" role="tab" data-t="ow" aria-selected="false">W jedną stronę<small id="n-ow"></small></button>
+  </div>
+
+  <div class="filters">
+    <label>Maks. cena (zł)<input id="f-max" type="number" min="0" step="10" placeholder="bez limitu"></label>
+    <label class="rt-only">Noce od<select id="f-nmin"></select></label>
+    <label class="rt-only">Noce do<select id="f-nmax"></select></label>
+    <label>Miesiąc wylotu<select id="f-month"><option value="">wszystkie</option></select></label>
+    <label>Wylot z<select id="f-orig"><option value="">wszystkie lotniska</option></select></label>
+    <label>Przewoźnik<select id="f-car">
+      <option value="">dowolny</option><option value="Ryanair">tylko Ryanair</option>
+      <option value="Wizz Air">tylko Wizz Air</option><option value="mix" class="rt-only">mieszane linie</option>
+    </select></label>
+    <label>Kierunek / kraj<input id="f-q" type="search" placeholder="np. Hiszpania, BCN"></label>
+    <label>Sortuj<select id="f-sort"><option value="price">od najtańszych</option><option value="date">wg daty</option></select></label>
+    <label class="check"><input id="f-weekend" type="checkbox"> Tylko weekendy</label>
+    <label class="check"><input id="f-one" type="checkbox" checked> Jeden wynik na kierunek</label>
+  </div>
+
+  <div class="count" id="count"></div>
+  <div class="list" id="list"></div>
+  <button class="tab more" id="more" hidden>Pokaż więcej</button>
+
+  <details><summary>Szczegóły ostatniego wyszukiwania</summary><pre id="meta"></pre></details>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const DOW = ["nd", "pn", "wt", "śr", "cz", "pt", "sb"];
+const MON = ["sty", "lut", "mar", "kwi", "maj", "cze", "lip", "sie", "wrz", "paź", "lis", "gru"];
+let DATA = null, tab = "rt", shown = 60;
+
+const d = s => new Date(s + "T12:00:00");
+const fmtDay = s => { const x = d(s); return `${DOW[x.getDay()]} ${x.getDate()} ${MON[x.getMonth()]}`; };
+const ap = c => (DATA.airports[c] || { code: c, city: c, country: "" });
+const city = c => { const a = ap(c); return a.city || a.name || c; };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+
+function leg(l, label) {
+  const cls = l.carrier === "Ryanair" ? "fr" : "wz";
+  return `<div class="leg"><span class="chip ${cls}">${esc(l.carrier)}</span>
+    <span>${label} <b>${esc(l.from)}</b> → <b>${esc(l.to)}</b>, ${fmtDay(l.date)}${l.time ? ", " + esc(l.time) : ""}</span>
+    <span class="lp">${l.price} zł${l.orig && !l.orig.endsWith("PLN") ? " (" + esc(l.orig) + ")" : ""}</span>
+    <a href="${esc(l.url)}" target="_blank" rel="noopener">Sprawdź ↗</a></div>`;
+}
+
+function card(t) {
+  const a = ap(t.dest);
+  let title = `${esc(city(t.dest))} <span class="cc">${esc(a.country)} · ${esc(t.dest)}</span>`;
+  let when = fmtDay(t.out.date);
+  if (t.ret) when += ` → ${fmtDay(t.ret.date)} · ${t.nights} ${t.nights === 1 ? "noc" : t.nights < 5 ? "noce" : "nocy"}`;
+  let extra = "";
+  if (t.type === "oj") extra = ` <span class="chip oj">powrót z ${esc(city(t.back))} (${esc(t.back)}), ${t.km} km</span>`;
+  return `<div class="trip">
+    <div class="price">${t.total}<small> zł</small></div>
+    <div><div class="dest">${title}</div><div class="when">${when}${extra}</div></div>
+    <div class="legs">${leg(t.out, "Wylot")}${t.ret ? leg(t.ret, "Powrót") : ""}</div></div>`;
+}
+
+function filtered() {
+  const max = +$("#f-max").value || Infinity, nmin = +$("#f-nmin").value, nmax = +$("#f-nmax").value;
+  const month = $("#f-month").value, orig = $("#f-orig").value, car = $("#f-car").value;
+  const q = $("#f-q").value.trim().toLowerCase(), wk = $("#f-weekend").checked, one = $("#f-one").checked;
+  let rows = DATA[tab].filter(t => {
+    if (t.total > max) return false;
+    if (t.ret && (t.nights < nmin || t.nights > nmax)) return false;
+    if (month && !t.out.date.startsWith(month)) return false;
+    if (orig && t.out.from !== orig) return false;
+    if (car === "mix" && (!t.ret || t.out.carrier === t.ret.carrier)) return false;
+    if (car && car !== "mix" && (t.out.carrier !== car || (t.ret && t.ret.carrier !== car))) return false;
+    if (wk) {
+      const o = d(t.out.date).getDay();
+      if (![4, 5, 6].includes(o)) return false;
+      if (t.ret && ![0, 1].includes(d(t.ret.date).getDay())) return false;
+    }
+    if (q) {
+      const hay = [t.dest, t.back, city(t.dest), ap(t.dest).country, t.back && city(t.back)].join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  if ($("#f-sort").value === "date") rows.sort((a, b) => a.out.date.localeCompare(b.out.date) || a.total - b.total);
+  else rows.sort((a, b) => a.total - b.total || a.out.date.localeCompare(b.out.date));
+  if (one) {
+    const seen = new Set();
+    rows = rows.filter(t => { const k = t.dest + "|" + (t.back || ""); if (seen.has(k)) return false; seen.add(k); return true; });
+  }
+  return rows;
+}
+
+function render() {
+  document.querySelectorAll(".rt-only").forEach(e => e.style.display = tab === "ow" ? "none" : "");
+  const rows = filtered();
+  $("#count").textContent = rows.length ? `${rows.length} wyników` : "";
+  $("#list").innerHTML = rows.length ? rows.slice(0, shown).map(card).join("")
+    : `<div class="empty">Brak wyników dla tych filtrów.</div>`;
+  $("#more").hidden = rows.length <= shown;
+}
+
+function init(data) {
+  DATA = data;
+  const m = data.meta, c = m.config;
+  const when = new Date(m.generated).toLocaleString("pl-PL", { dateStyle: "medium", timeStyle: "short" });
+  $("#sub").textContent = `Aktualizacja: ${when} · loty ${fmtDay(m.window[0])} – ${fmtDay(m.window[1])} · z ${c.origins.join(", ")}`;
+  for (const k of ["rt", "oj", "ow"]) $("#n-" + k).textContent = data[k].length;
+  for (let n = c.nights_min; n <= c.nights_max; n++) {
+    $("#f-nmin").add(new Option(n, n)); $("#f-nmax").add(new Option(n, n));
+  }
+  $("#f-nmax").value = c.nights_max;
+  c.origins.forEach(o => $("#f-orig").add(new Option(`${o} – ${city(o)}`, o)));
+  const months = new Set(); ["rt", "oj", "ow"].forEach(k => data[k].forEach(t => months.add(t.out.date.slice(0, 7))));
+  [...months].sort().forEach(mm => { const [y, mo] = mm.split("-"); $("#f-month").add(new Option(`${MON[+mo - 1]} ${y}`, mm)); });
+  $("#meta").textContent = m.providers.map(p => `${p.name}: ${p.routes} tras, ${p.fares} cen${p.notes.length ? " — " + p.notes.join("; ") : ""}`).join("\n")
+    + `\nKursy walut: ${m.fx}\nCzas wyszukiwania: ${m.seconds} s\nHTTP: ${JSON.stringify(m.http)}`
+    + `\nOpen-jaw: lotniska do ${c.openjaw_km} km od siebie`;
+  render();
+}
+
+document.querySelectorAll(".tab[data-t]").forEach(b => b.onclick = () => {
+  tab = b.dataset.t; shown = 60;
+  document.querySelectorAll(".tab[data-t]").forEach(x => x.setAttribute("aria-selected", x === b));
+  render();
+});
+document.querySelectorAll(".filters input, .filters select").forEach(e => e.oninput = () => { shown = 60; render(); });
+$("#more").onclick = () => { shown += 60; render(); };
+
+fetch("results.json", { cache: "no-store" }).then(r => r.json()).then(init)
+  .catch(() => { $("#sub").textContent = "Nie udało się wczytać wyników (results.json)."; });
+</script>
+</body>
+</html>

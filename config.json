@@ -1,0 +1,9 @@
+{
+  "origins": ["WAW", "WMI"],
+  "months": 3,
+  "nights_min": 2,
+  "nights_max": 5,
+  "openjaw_km": 350,
+  "max_total": 0,
+  "providers": ["ryanair", "wizzair"]
+}

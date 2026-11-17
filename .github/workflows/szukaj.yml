@@ -1,0 +1,71 @@
+name: Szukaj tanich lotów
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"   # co 6 godzin (czas UTC)
+  push:
+    branches: [main]
+    paths: ["tanie_loty/**", "site/**", "config.json", ".github/workflows/szukaj.yml"]
+  workflow_dispatch:
+    inputs:
+      origins:
+        description: "Lotniska startowe (np. WAW,WMI) — puste = z config.json"
+        required: false
+      months:
+        description: "Ile miesięcy do przodu"
+        required: false
+      nights_min:
+        description: "Minimum nocy"
+        required: false
+      nights_max:
+        description: "Maksimum nocy"
+        required: false
+      max_total:
+        description: "Maks. cena całej podróży w PLN (0 = bez limitu)"
+        required: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: szukaj
+  cancel-in-progress: true
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Wyszukiwanie
+        env:
+          IN_ORIGINS: ${{ inputs.origins }}
+          IN_MONTHS: ${{ inputs.months }}
+          IN_NMIN: ${{ inputs.nights_min }}
+          IN_NMAX: ${{ inputs.nights_max }}
+          IN_MAX: ${{ inputs.max_total }}
+        run: |
+          python -m tanie_loty --out public \
+            --origins "$IN_ORIGINS" --months "$IN_MONTHS" \
+            --nights-min "$IN_NMIN" --nights-max "$IN_NMAX" --max-total "$IN_MAX"
+      - uses: actions/upload-pages-artifact@v3
+        if: always()
+        with:
+          path: public
+
+  deploy:
+    needs: search
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

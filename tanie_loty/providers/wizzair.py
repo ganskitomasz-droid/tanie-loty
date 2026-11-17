@@ -33,6 +33,8 @@ class WizzAir:
             "Referer": "https://www.wizzair.com/pl-pl",
         }
         self.version_source = ""
+        self.ok = 0
+        self.failed = 0
 
     def _init_api(self) -> bool:
         # Strona główna osadza adres API: apiUrl:"https://be.wizzair.com/29.14.0/Api"
@@ -98,6 +100,8 @@ class WizzAir:
         fares: list[Fare] = []
         cur = start
         while cur <= end:
+            if self.failed >= 6 and self.ok == 0:  # bezpiecznik: API nas blokuje — nie męczymy go dalej
+                return fares
             stop = min(end, cur + dt.timedelta(days=CHUNK_DAYS - 1))
             body = {
                 "flightList": [
@@ -110,7 +114,10 @@ class WizzAir:
             }
             data = self.http.json("POST", f"{self.api}/search/timetableV2", TAG,
                                   json=body, headers=self._hdrs())
-            if data:
+            if data is None:
+                self.failed += 1
+            else:
+                self.ok += 1
                 fares += self._parse(data.get("outboundFlights"), start, end)
                 fares += self._parse(data.get("returnFlights"), start, end)
             cur = stop + dt.timedelta(days=1)
@@ -130,4 +137,8 @@ class WizzAir:
         with ThreadPoolExecutor(self.workers) as ex:
             for fares in ex.map(lambda p: self.timetable(*p, start, end), pairs):
                 res.fares.extend(fares)
+        if self.failed and not self.ok:
+            res.notes.append("wszystkie zapytania o ceny odrzucone (blokada?)")
+        elif self.failed:
+            res.notes.append(f"{self.failed} z {self.ok + self.failed} zapytań o ceny nieudanych")
         return res

@@ -30,9 +30,9 @@ class Http:
         retry = Retry(
             total=3,
             backoff_factor=1.5,
-            status_forcelist=(429, 500, 502, 503, 504),
+            status_forcelist=(500, 502, 503, 504),  # 429 = blokada antybotowa, ponawianie nic nie da
             allowed_methods=None,  # ponawiaj także POST (zapytania są idempotentne)
-            respect_retry_after_header=True,
+            respect_retry_after_header=False,
         )
         adapter = HTTPAdapter(max_retries=retry, pool_connections=8, pool_maxsize=8)
         self.session.mount("https://", adapter)

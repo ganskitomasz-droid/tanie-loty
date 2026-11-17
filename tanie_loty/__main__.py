@@ -160,7 +160,9 @@ def main(argv=None) -> int:
         [f"{pr['name']}: {pr['routes']} tras, {pr['fares']} cen" +
          (f" — {'; '.join(pr['notes'])}" if pr["notes"] else "") for pr in providers]
         + [f"Kombinacje: {len(trips['rt'])} w obie strony, {len(trips['oj'])} open-jaw, "
-           f"{len(trips['ow'])} w jedną stronę", f"HTTP: {json.dumps(meta['http'])}",
+           f"{len(trips['ow'])} w jedną stronę", f"HTTP: {json.dumps(meta['http'])}"]
+        + [f"Pierwszy błąd {k}: {v}" for k, v in http.samples.items()]
+        + [
            f"Kursy: {fx_source}, czas: {meta['seconds']} s"])
     log.info("\n%s", summary)
     gh_annotation("notice" if fares else "warning", "Wynik wyszukiwania", summary)

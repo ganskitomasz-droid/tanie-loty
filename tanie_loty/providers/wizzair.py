@@ -16,6 +16,7 @@ log = logging.getLogger(__name__)
 NAME = "Wizz Air"
 TAG = "wizzair"
 CHUNK_DAYS = 30
+DEFAULT_VERSION = "29.14.0"
 
 
 def booking_url(o: str, d: str, date: str) -> str:
@@ -28,26 +29,36 @@ class WizzAir:
         self.api: str | None = None
         self.headers = {
             "Content-Type": "application/json",
-            "Origin": "https://wizzair.com",
-            "Referer": "https://wizzair.com/pl-pl",
+            "Origin": "https://www.wizzair.com",
+            "Referer": "https://www.wizzair.com/pl-pl",
         }
+        self.version_source = ""
 
     def _init_api(self) -> bool:
-        r = self.http.request("GET", "https://wizzair.com/buildnumber", TAG)
-        m = re.search(r"(\d+\.\d+\.\d+)", r.text if r is not None and r.ok else "")
-        if not m:
-            return False
-        self.api = f"https://be.wizzair.com/{m.group(1)}/Api"
-        # Ciasteczka sesji (część endpointów wymaga tokenu z ciasteczka).
-        self.http.request("GET", "https://wizzair.com/pl-pl", TAG, headers={"Accept": "text/html"})
-        tok = self.http.session.cookies.get("RequestVerificationToken")
-        if tok:
-            self.headers["X-RequestVerificationToken"] = tok
+        # Strona główna osadza adres API: apiUrl:"https://be.wizzair.com/29.14.0/Api"
+        version = None
+        for url in ("https://www.wizzair.com/pl-pl", "https://www.wizzair.com/en-gb"):
+            r = self.http.request("GET", url, TAG, headers={"Accept": "text/html"})
+            m = re.search(r"be\.wizzair\.com/(\d+\.\d+\.\d+)/Api", r.text if r is not None else "")
+            if m:
+                version = m.group(1)
+                break
+        self.api = f"https://be.wizzair.com/{version or DEFAULT_VERSION}/Api"
+        self.version_source = "strona" if version else f"domyślna {DEFAULT_VERSION}"
+        # Nowa sesja ustawia ciasteczko z tokenem weryfikacyjnym.
+        self.http.request("GET", f"{self.api}/userSession/new", TAG, headers=self.headers)
         return True
+
+    def _hdrs(self) -> dict:
+        h = dict(self.headers)
+        tok = self.http.session.cookies.get("RequestVerificationToken")
+        if tok:  # token rotuje — czytamy go świeżo przy każdym zapytaniu
+            h["X-RequestVerificationToken"] = tok
+        return h
 
     def network(self) -> tuple[dict[str, Airport], dict[str, set[str]]]:
         data = self.http.json("GET", f"{self.api}/asset/map", TAG,
-                              params={"languageCode": "pl-pl"}, headers=self.headers) or {}
+                              params={"languageCode": "pl-pl"}, headers=self._hdrs()) or {}
         airports: dict[str, Airport] = {}
         conns: dict[str, set[str]] = {}
         for c in data.get("cities", []):
@@ -66,7 +77,7 @@ class WizzAir:
         for f in flights or []:
             price = f.get("price") or {}
             amount = price.get("amount")
-            if f.get("priceType") != "price" or not amount:
+            if f.get("priceType") in ("soldOut", "checkPrice") or not amount:
                 continue
             day = (f.get("departureDate") or "")[:10]
             if not in_window(day, start, end):
@@ -75,7 +86,9 @@ class WizzAir:
             pln = self.fx.to_pln(float(amount), cur)
             if pln is None:
                 continue
-            times = sorted(f.get("departureDates") or [])
+            times = sorted((x.get("date") if isinstance(x, dict) else x) or ""
+                           for x in f.get("departureDates") or [])
+            times = [x for x in times if x]
             t = times[0][11:16] if times else None
             o, d = f.get("departureStation"), f.get("arrivalStation")
             out.append(Fare(NAME, o, d, day, t, pln, float(amount), cur, booking_url(o, d, day)))
@@ -95,8 +108,8 @@ class WizzAir:
                 ],
                 "priceType": "regular", "adultCount": 1, "childCount": 0, "infantCount": 0,
             }
-            data = self.http.json("POST", f"{self.api}/search/timetable", TAG,
-                                  json=body, headers=self.headers)
+            data = self.http.json("POST", f"{self.api}/search/timetableV2", TAG,
+                                  json=body, headers=self._hdrs())
             if data:
                 fares += self._parse(data.get("outboundFlights"), start, end)
                 fares += self._parse(data.get("returnFlights"), start, end)
@@ -105,9 +118,8 @@ class WizzAir:
 
     def fetch(self, origins: list[str], start: dt.date, end: dt.date) -> ProviderResult:
         res = ProviderResult(NAME)
-        if not self._init_api():
-            res.notes.append("nie udało się ustalić wersji API Wizz Air (blokada?)")
-            return res
+        self._init_api()
+        res.notes.append(f"wersja API: {self.version_source}")
         res.airports, conns = self.network()
         if not conns:
             res.notes.append("brak siatki połączeń Wizz Air (blokada?)")

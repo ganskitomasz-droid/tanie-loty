@@ -42,6 +42,7 @@ class Http:
         self._last: dict[str, float] = {}
         self._lock = threading.Lock()
         self.stats: Counter = Counter()   # (tag, status) -> liczba
+        self.samples: dict[str, str] = {}  # tag -> pierwszy błąd (do diagnostyki)
 
     def _throttle(self, url: str) -> None:
         host = urlparse(url).netloc
@@ -63,6 +64,7 @@ class Http:
             return None
         self.stats[(tag, r.status_code)] += 1
         if r.status_code >= 400:
+            self.samples.setdefault(tag, f"{method} {urlparse(url).path} -> {r.status_code}: {r.text[:200]}")
             log.debug("%s %s -> HTTP %s: %s", method, url, r.status_code, r.text[:200])
         return r
 

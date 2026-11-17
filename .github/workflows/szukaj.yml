@@ -1,4 +1,5 @@
 name: Szukaj tanich lotów
+# Wyniki: https://ganskitomasz-droid.github.io/tanie-loty/
 
 on:
   schedule:

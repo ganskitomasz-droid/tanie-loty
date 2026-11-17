@@ -20,7 +20,7 @@ UA = (
 
 
 class Http:
-    def __init__(self, min_interval: float = 0.3, timeout: float = 25):
+    def __init__(self, min_interval: float = 0.3, timeout: float = 25, retries: int = 3):
         self.session = requests.Session()
         self.session.headers.update({
             "User-Agent": UA,
@@ -28,7 +28,7 @@ class Http:
             "Accept-Language": "pl-PL,pl;q=0.9,en;q=0.8",
         })
         retry = Retry(
-            total=3,
+            total=retries,
             backoff_factor=1.5,
             status_forcelist=(500, 502, 503, 504),  # 429 = blokada antybotowa, ponawianie nic nie da
             allowed_methods=None,  # ponawiaj także POST (zapytania są idempotentne)

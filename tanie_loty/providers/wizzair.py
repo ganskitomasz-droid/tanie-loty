@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 from ..fx import Fx
@@ -15,7 +16,7 @@ log = logging.getLogger(__name__)
 
 NAME = "Wizz Air"
 TAG = "wizzair"
-CHUNK_DAYS = 30
+CHUNK_DAYS = 42
 DEFAULT_VERSION = "29.14.0"
 
 
@@ -24,8 +25,11 @@ def booking_url(o: str, d: str, date: str) -> str:
 
 
 class WizzAir:
-    def __init__(self, http: Http, fx: Fx, workers: int = 3):
-        self.http, self.fx, self.workers = http, fx, workers
+    def __init__(self, http: Http, fx: Fx, workers: int = 1):
+        # Wizz Air szybko ogranicza liczbę zapytań: osobny, wolniejszy klient bez automatycznych ponowień.
+        self.http = Http(min_interval=1.5, timeout=20, retries=0)
+        self.shared = http
+        self.fx, self.workers = fx, workers
         self.api: str | None = None
         self.headers = {
             "Content-Type": "application/json",
@@ -35,6 +39,9 @@ class WizzAir:
         self.version_source = ""
         self.ok = 0
         self.failed = 0
+        self.consecutive = 0
+        self.deadline = time.monotonic() + 15 * 60   # maks. 15 minut na Wizz Air
+        self.stopped = ""
 
     def _init_api(self) -> bool:
         # Strona główna osadza adres API: apiUrl:"https://be.wizzair.com/29.14.0/Api"
@@ -100,7 +107,12 @@ class WizzAir:
         fares: list[Fare] = []
         cur = start
         while cur <= end:
-            if self.failed >= 6 and self.ok == 0:  # bezpiecznik: API nas blokuje — nie męczymy go dalej
+            # bezpieczniki: seria odmów albo przekroczony czas — nie męczymy dalej API
+            if self.consecutive >= 4:
+                self.stopped = self.stopped or "przerwano po serii odmów (limit zapytań)"
+                return fares
+            if time.monotonic() > self.deadline:
+                self.stopped = self.stopped or "przerwano po 15 min (limit czasu)"
                 return fares
             stop = min(end, cur + dt.timedelta(days=CHUNK_DAYS - 1))
             body = {
@@ -112,12 +124,21 @@ class WizzAir:
                 ],
                 "priceType": "regular", "adultCount": 1, "childCount": 0, "infantCount": 0,
             }
-            data = self.http.json("POST", f"{self.api}/search/timetableV2", TAG,
-                                  json=body, headers=self._hdrs())
+            data = None
+            for attempt in range(3):
+                data = self.http.json("POST", f"{self.api}/search/timetableV2", TAG,
+                                      json=body, headers=self._hdrs())
+                if data is not None:
+                    break
+                # Prawdopodobnie limit zapytań: odczekaj i odnów sesję.
+                time.sleep(20 * (attempt + 1))
+                self.http.request("GET", f"{self.api}/userSession/new", TAG, headers=self.headers)
             if data is None:
                 self.failed += 1
+                self.consecutive += 1
             else:
                 self.ok += 1
+                self.consecutive = 0
                 fares += self._parse(data.get("outboundFlights"), start, end)
                 fares += self._parse(data.get("returnFlights"), start, end)
             cur = stop + dt.timedelta(days=1)
@@ -137,6 +158,12 @@ class WizzAir:
         with ThreadPoolExecutor(self.workers) as ex:
             for fares in ex.map(lambda p: self.timetable(*p, start, end), pairs):
                 res.fares.extend(fares)
+        # statystyki HTTP Wizz Air do wspólnego podsumowania
+        self.shared.stats.update(self.http.stats)
+        for k, v in self.http.samples.items():
+            self.shared.samples.setdefault(k, v)
+        if self.stopped:
+            res.notes.append(self.stopped)
         if self.failed and not self.ok:
             res.notes.append("wszystkie zapytania o ceny odrzucone (blokada?)")
         elif self.failed:

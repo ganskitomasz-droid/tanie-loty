@@ -32,6 +32,13 @@
   .filters label.check { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); }
   input, select { font: inherit; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line);
                   background: var(--bg); color: var(--ink); min-width: 0; }
+  .note { margin: 12px 2px 0; padding: 10px 14px; border-radius: 10px; font-size: 14px;
+          background: #fff4d6; color: #6b4e00; }
+  @media (prefers-color-scheme: dark) { .note { background: #3a3110; color: #f3d77a; } }
+  .note[hidden] { display: none; }
+  .price .pp { display: block; font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+  .book { margin-top: 2px; font-size: 14px; }
+  .book a { color: var(--accent); text-decoration: none; font-weight: 600; }
   .count { color: var(--muted); font-size: 13px; margin: 14px 2px 8px; }
   .list { display: flex; flex-direction: column; gap: 8px; }
   .trip { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px;
@@ -75,12 +82,17 @@
   </div>
 
   <div class="filters">
-    <label>Maks. cena (zł)<input id="f-max" type="number" min="0" step="10" placeholder="bez limitu"></label>
+    <label>Dorośli<select id="f-adults"></select></label>
+    <label>Dzieci (2–11 lat)<select id="f-kids"></select></label>
+    <label>Data wylotu<input id="f-out" type="date"></label>
+    <label class="rt-only">Data powrotu<input id="f-in" type="date"></label>
+    <label>Elastyczność dat<select id="f-flex">
+      <option value="0">dokładnie ten dzień</option><option value="1">± 1 dzień</option>
+      <option value="2">± 2 dni</option><option value="3">± 3 dni</option><option value="7">± 7 dni</option>
+    </select></label>
+    <label>Maks. cena za wszystkich (zł)<input id="f-max" type="number" min="0" step="10" placeholder="bez limitu"></label>
     <label class="rt-only">Noce od<select id="f-nmin"></select></label>
     <label class="rt-only">Noce do<select id="f-nmax"></select></label>
-    <label>Wylot od<input id="f-from" type="date"></label>
-    <label>Wylot do<input id="f-to" type="date"></label>
-    <label class="rt-only">Powrót najpóźniej<input id="f-retby" type="date"></label>
     <label>Miesiąc wylotu<select id="f-month"><option value="">wszystkie</option></select></label>
     <label>Wylot z<select id="f-orig"><option value="">wszystkie lotniska</option></select></label>
     <label>Przewoźnik<select id="f-car">
@@ -94,6 +106,7 @@
     <button class="tab reset" id="f-reset" type="button">Wyczyść filtry</button>
   </div>
 
+  <div class="note" id="note" hidden></div>
   <div class="count" id="count"></div>
   <div class="list" id="list"></div>
   <button class="tab more" id="more" hidden>Pokaż więcej</button>
@@ -113,17 +126,25 @@ const ap = c => (DATA.airports[c] || { code: c, city: c, country: "" });
 const city = c => { const a = ap(c); return a.city || a.name || c; };
 const esc = s => String(s ?? "").replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
 
-function bookUrl(l) {
-  return l.carrier === "Ryanair"
-    ? `https://www.ryanair.com/pl/pl/trip/flights/select?adults=1&teens=0&children=0&infants=0&dateOut=${l.date}&isConnectedFlight=false&isReturn=false&discount=0&originIata=${l.from}&destinationIata=${l.to}`
-    : `https://wizzair.com/pl-pl/booking/select-flight/${l.from}/${l.to}/${l.date}/null/1/0/0/null`;
+const pax = () => ({ a: +$("#f-adults").value || 1, k: +$("#f-kids").value || 0 });
+const seats = () => { const p = pax(); return p.a + p.k; };
+
+// Link do rezerwacji; gdy podano ret (ta sama linia, te same lotniska) — od razu w obie strony.
+function bookUrl(l, ret) {
+  const { a, k } = pax();
+  if (l.carrier === "Ryanair")
+    return `https://www.ryanair.com/pl/pl/trip/flights/select?adults=${a}&teens=0&children=${k}&infants=0`
+      + `&dateOut=${l.date}${ret ? "&dateIn=" + ret.date : ""}&isConnectedFlight=false&isReturn=${!!ret}`
+      + `&discount=0&originIata=${l.from}&destinationIata=${l.to}`;
+  return `https://wizzair.com/pl-pl/booking/select-flight/${l.from}/${l.to}/${l.date}/${ret ? ret.date : "null"}/${a}/${k}/0/null`;
 }
+const sameTrip = t => t.ret && t.out.carrier === t.ret.carrier && t.out.from === t.ret.to && t.out.to === t.ret.from;
 
 function leg(l, label) {
   const cls = l.carrier === "Ryanair" ? "fr" : "wz";
   return `<div class="leg"><span class="chip ${cls}">${esc(l.carrier)}</span>
     <span>${label} <b>${esc(l.from)}</b> → <b>${esc(l.to)}</b>, ${fmtDay(l.date)}${l.time ? ", " + esc(l.time) : ""}</span>
-    <span class="lp">${l.price} zł${l.orig ? " (" + esc(l.orig) + ")" : ""}</span>
+    <span class="lp">${l.price} zł/os.${l.orig ? " (" + esc(l.orig) + ")" : ""}</span>
     <a href="${esc(bookUrl(l))}" target="_blank" rel="noopener">Sprawdź ↗</a></div>`;
 }
 
@@ -135,23 +156,25 @@ function card(t) {
   let extra = "";
   if (t.type === "oj") extra = ` <span class="chip oj">powrót z ${esc(city(t.back))} (${esc(t.back)}), ${t.km} km</span>`;
   return `<div class="trip">
-    <div class="price">${t.total}<small> zł</small></div>
+    <div class="price">${t.total * seats()}<small> zł</small>${seats() > 1 ? `<span class="pp">${t.total} zł/os. × ${seats()}</span>` : ""}</div>
     <div><div class="dest">${title}</div><div class="when">${when}${extra}</div></div>
-    <div class="legs">${leg(t.out, "Wylot")}${t.ret ? leg(t.ret, "Powrót") : ""}</div></div>`;
+    <div class="legs">${leg(t.out, "Wylot")}${t.ret ? leg(t.ret, "Powrót") : ""}
+    ${sameTrip(t) ? `<div class="book"><a href="${esc(bookUrl(t.out, t.ret))}" target="_blank" rel="noopener">Sprawdź w obie strony w ${esc(t.out.carrier)} ↗</a></div>` : ""}</div></div>`;
 }
 
 function filtered() {
-  const max = +$("#f-max").value || Infinity, nmin = +$("#f-nmin").value, nmax = +$("#f-nmax").value;
-  const from = $("#f-from").value, to = $("#f-to").value, retby = $("#f-retby").value;
+  const max = (+$("#f-max").value || Infinity) / seats(), nmin = +$("#f-nmin").value, nmax = +$("#f-nmax").value;
+  const flex = +$("#f-flex").value, dOut = validDate("#f-out"), dIn = tab === "ow" ? "" : validDate("#f-in");
+  const near = (a, b) => Math.abs(d(a) - d(b)) <= flex * 86400000 + 3600000;
   const month = $("#f-month").value, orig = $("#f-orig").value, car = $("#f-car").value;
   const q = $("#f-q").value.trim().toLowerCase(), wk = $("#f-weekend").checked, one = $("#f-one").checked;
   let rows = DATA[tab].filter(t => {
     if (t.total > max) return false;
-    if (t.ret && (t.nights < nmin || t.nights > nmax)) return false;
+    // przy podanych obu datach liczba nocy wynika z dat — filtr nocy pomijamy
+    if (t.ret && !(dOut && dIn) && (t.nights < nmin || t.nights > nmax)) return false;
+    if (dOut && !near(t.out.date, dOut)) return false;
+    if (dIn && t.ret && !near(t.ret.date, dIn)) return false;
     if (month && !t.out.date.startsWith(month)) return false;
-    if (from && t.out.date < from) return false;
-    if (to && t.out.date > to) return false;
-    if (retby && t.ret && t.ret.date > retby) return false;
     if (orig && t.out.from !== orig) return false;
     if (car === "mix" && (!t.ret || t.out.carrier === t.ret.carrier)) return false;
     if (car && car !== "mix" && (t.out.carrier !== car || (t.ret && t.ret.carrier !== car))) return false;
@@ -175,9 +198,36 @@ function filtered() {
   return rows;
 }
 
+// Zwraca datę tylko, jeśli mieści się w przeszukanym okresie; inaczej pokazuje ostrzeżenie.
+let warnings = [];
+function validDate(id) {
+  const v = $(id).value;
+  if (!v) return "";
+  const [w0, w1] = DATA.meta.window;
+  if (v < w0 || v > w1) {
+    warnings.push(`Data ${v.split("-").reverse().join(".")} jest poza przeszukanym okresem (${fmtDay(w0)} – ${fmtDay(w1)} ${w1.slice(0, 4)}) — pomijam ją. Sprawdź rok.`);
+    return "";
+  }
+  return v;
+}
+
 function render() {
+  warnings = [];
   document.querySelectorAll(".rt-only").forEach(e => e.style.display = tab === "ow" ? "none" : "");
   const rows = filtered();
+  const c = DATA.meta.config, o = validDate("#f-out"), i = tab === "ow" ? "" : validDate("#f-in");
+  warnings = [...new Set(warnings)];
+  if (o && i) {
+    const n = Math.round((d(i) - d(o)) / 86400000);
+    if (n < 0) warnings.push("Data powrotu jest wcześniejsza niż data wylotu.");
+    else if (n - +$("#f-flex").value > c.nights_max || n + +$("#f-flex").value < c.nights_min)
+      warnings.push(`Wyszukiwarka zbiera pobyty ${c.nights_min}–${c.nights_max} nocy, a wybrane daty dają ${n}. `
+        + `Dłuższe pobyty: zmień „nights_max” w config.json albo przy ręcznym uruchomieniu (Run workflow).`);
+  }
+  if (seats() > 1) warnings.push(`Ceny × ${seats()} os. — to szacunek: najtańszych miejsc może nie starczyć dla wszystkich. `
+    + `Linki „Sprawdź” otwierają rezerwację od razu z wybraną liczbą osób.`);
+  $("#note").hidden = !warnings.length;
+  $("#note").innerHTML = warnings.map(esc).join("<br>");
   $("#count").textContent = rows.length ? `${rows.length} wyników` : "";
   $("#list").innerHTML = rows.length ? rows.slice(0, shown).map(card).join("")
     : `<div class="empty">Brak wyników dla tych filtrów.</div>`;
@@ -194,7 +244,9 @@ function init(data) {
     $("#f-nmin").add(new Option(n, n)); $("#f-nmax").add(new Option(n, n));
   }
   $("#f-nmax").value = c.nights_max;
-  for (const id of ["#f-from", "#f-to", "#f-retby"]) { $(id).min = m.window[0]; $(id).max = m.window[1]; }
+  for (const id of ["#f-out", "#f-in"]) { $(id).min = m.window[0]; $(id).max = m.window[1]; }
+  for (let n = 1; n <= 9; n++) $("#f-adults").add(new Option(n, n));
+  for (let n = 0; n <= 6; n++) $("#f-kids").add(new Option(n, n));
   c.origins.forEach(o => $("#f-orig").add(new Option(`${o} – ${city(o)}`, o)));
   const months = new Set(); ["rt", "oj", "ow"].forEach(k => data[k].forEach(t => months.add(t.out.date.slice(0, 7))));
   [...months].sort().forEach(mm => { const [y, mo] = mm.split("-"); $("#f-month").add(new Option(`${MON[+mo - 1]} ${y}`, mm)); });
@@ -210,14 +262,10 @@ document.querySelectorAll(".tab[data-t]").forEach(b => b.onclick = () => {
   render();
 });
 document.querySelectorAll(".filters input, .filters select").forEach(e => e.oninput = () => { shown = 60; render(); });
-$("#f-from").addEventListener("change", () => {
-  const f = $("#f-from").value, t = $("#f-to");
-  if (f && (!t.value || t.value < f)) { t.value = f; }
-  render();
-});
 $("#f-reset").onclick = () => {
   document.querySelectorAll(".filters input[type=date], .filters input[type=number], .filters input[type=search]").forEach(e => e.value = "");
   ["#f-month", "#f-orig", "#f-car"].forEach(id => $(id).value = "");
+  $("#f-flex").value = "0"; $("#f-adults").value = "1"; $("#f-kids").value = "0";
   $("#f-nmin").selectedIndex = 0; $("#f-nmax").selectedIndex = $("#f-nmax").options.length - 1;
   $("#f-weekend").checked = false; $("#f-one").checked = true; shown = 60; render();
 };

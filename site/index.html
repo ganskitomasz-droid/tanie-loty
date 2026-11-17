@@ -42,7 +42,16 @@
   .count { color: var(--muted); font-size: 13px; margin: 14px 2px 8px; }
   .list { display: flex; flex-direction: column; gap: 8px; }
   .trip { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px;
-          display: grid; grid-template-columns: 110px 1fr; gap: 6px 18px; align-items: start; }
+          display: grid; grid-template-columns: 110px 1fr 250px; gap: 6px 18px; align-items: start; }
+  .trip.noh { grid-template-columns: 110px 1fr; }
+  .hotel { grid-column: 3; grid-row: 1 / span 2; border-left: 1px solid var(--line); padding-left: 16px;
+           font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; height: 100%; }
+  .hotel b { color: var(--ink); font-size: 14px; }
+  .hotel .crit { display: flex; flex-wrap: wrap; gap: 4px; }
+  .hotel .crit span { background: var(--chip); border-radius: 999px; padding: 1px 8px; font-size: 12px; }
+  .hotel a.btn { margin-top: auto; text-align: center; background: #003b95; color: #fff; text-decoration: none;
+                 font-weight: 600; padding: 8px 10px; border-radius: 8px; }
+  .hotel a.btn:hover { background: #00296b; }
   .price { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
   .price small { font-size: 13px; font-weight: 500; color: var(--muted); }
   .dest { font-size: 17px; font-weight: 600; }
@@ -62,8 +71,13 @@
   details { margin-top: 30px; color: var(--muted); font-size: 13px; }
   details pre { white-space: pre-wrap; background: var(--card); border: 1px solid var(--line);
                 padding: 10px; border-radius: 10px; }
+  @media (max-width: 900px) {
+    .trip, .trip.noh { grid-template-columns: 110px 1fr; }
+    .hotel { grid-column: 1 / -1; grid-row: auto; border-left: 0; border-top: 1px solid var(--line);
+             padding: 10px 0 0; }
+  }
   @media (max-width: 600px) {
-    .trip { grid-template-columns: 1fr; }
+    .trip, .trip.noh { grid-template-columns: 1fr; }
     .legs { grid-column: 1; }
     .leg a { margin-left: 0; }
   }
@@ -140,10 +154,43 @@ function bookUrl(l, ret) {
 }
 const sameTrip = t => t.ret && t.out.carrier === t.ret.carrier && t.out.from === t.ret.to && t.out.to === t.ret.from;
 
+function times(l) {
+  if (!l.time) return "";
+  if (!l.arr) return `, wylot ${esc(l.time)}`;
+  const next = l.arr_date ? ` <small>(${fmtDay(l.arr_date)})</small>` : "";
+  return `, <b>${esc(l.time)}</b> → <b>${esc(l.arr)}</b>${next}`;
+}
+
+// Nocleg: link do Booking.com z kryteriami (≤3 km od centrum, bez hosteli, ocena 7+), od najtańszych.
+const HT = [204, 201, 220, 216, 208, 213, 222, 206, 205]; // hotele, apartamenty, domy, pensjonaty, B&B, wille… (bez 203 = hostele)
+function stay(t) {
+  if (!t.ret) return null;
+  const checkin = t.out.arr_date || t.out.date, checkout = t.ret.date;
+  const nights = Math.round((d(checkout) - d(checkin)) / 86400000);
+  if (nights < 1) return null;
+  const a = ap(t.dest), { a: ad, k } = pax();
+  const nflt = ["distance=3000", "review_score=70", ...HT.map(h => "ht_id=" + h)].join(";");
+  const q = new URLSearchParams({ ss: [city(t.dest), a.country].filter(Boolean).join(", "), checkin, checkout,
+    group_adults: ad, group_children: k, no_rooms: 1, order: "price", nflt, lang: "pl" });
+  for (let i = 0; i < k; i++) q.append("age", 8);
+  return { url: "https://www.booking.com/searchresults.pl.html?" + q, checkin, checkout, nights, city: city(t.dest) };
+}
+
+function hotelBox(t) {
+  const h = stay(t);
+  if (!h) return "";
+  const { a, k } = pax();
+  const who = `${a} ${a === 1 ? "dorosły" : "dorosłych"}${k ? `, ${k} ${k === 1 ? "dziecko" : "dzieci"}` : ""}`;
+  return `<div class="hotel"><b>Nocleg: ${esc(h.city)}</b>
+    <span>${fmtDay(h.checkin)} → ${fmtDay(h.checkout)} · ${h.nights} ${h.nights === 1 ? "noc" : h.nights < 5 ? "noce" : "nocy"} · ${who}</span>
+    <div class="crit"><span>≤ 3 km od centrum</span><span>bez hosteli</span><span>ocena 7+</span><span>od najtańszych</span></div>
+    <a class="btn" href="${esc(h.url)}" target="_blank" rel="noopener">Najtańszy nocleg na Booking.com ↗</a></div>`;
+}
+
 function leg(l, label) {
   const cls = l.carrier === "Ryanair" ? "fr" : "wz";
   return `<div class="leg"><span class="chip ${cls}">${esc(l.carrier)}</span>
-    <span>${label} <b>${esc(l.from)}</b> → <b>${esc(l.to)}</b>, ${fmtDay(l.date)}${l.time ? ", " + esc(l.time) : ""}</span>
+    <span>${label} <b>${esc(l.from)}</b> → <b>${esc(l.to)}</b>, ${fmtDay(l.date)}${times(l)}</span>
     <span class="lp">${l.price} zł/os.${l.orig ? " (" + esc(l.orig) + ")" : ""}</span>
     <a href="${esc(bookUrl(l))}" target="_blank" rel="noopener">Sprawdź ↗</a></div>`;
 }
@@ -155,11 +202,13 @@ function card(t) {
   if (t.ret) when += ` → ${fmtDay(t.ret.date)} · ${t.nights} ${t.nights === 1 ? "noc" : t.nights < 5 ? "noce" : "nocy"}`;
   let extra = "";
   if (t.type === "oj") extra = ` <span class="chip oj">powrót z ${esc(city(t.back))} (${esc(t.back)}), ${t.km} km</span>`;
-  return `<div class="trip">
+  const hb = hotelBox(t);
+  return `<div class="trip${hb ? "" : " noh"}">
     <div class="price">${t.total * seats()}<small> zł</small>${seats() > 1 ? `<span class="pp">${t.total} zł/os. × ${seats()}</span>` : ""}</div>
     <div><div class="dest">${title}</div><div class="when">${when}${extra}</div></div>
     <div class="legs">${leg(t.out, "Wylot")}${t.ret ? leg(t.ret, "Powrót") : ""}
-    ${sameTrip(t) ? `<div class="book"><a href="${esc(bookUrl(t.out, t.ret))}" target="_blank" rel="noopener">Sprawdź w obie strony w ${esc(t.out.carrier)} ↗</a></div>` : ""}</div></div>`;
+    ${sameTrip(t) ? `<div class="book"><a href="${esc(bookUrl(t.out, t.ret))}" target="_blank" rel="noopener">Sprawdź w obie strony w ${esc(t.out.carrier)} ↗</a></div>` : ""}</div>
+    ${hb}</div>`;
 }
 
 function filtered() {

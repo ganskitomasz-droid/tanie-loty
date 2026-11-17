@@ -39,6 +39,7 @@ class WizzAir:
         self.version_source = ""
         self.ok = 0
         self.failed = 0
+        self.sample_keys = ""
         self.consecutive = 0
         self.deadline = time.monotonic() + 15 * 60   # maks. 15 minut na Wizz Air
         self.stopped = ""
@@ -95,12 +96,22 @@ class WizzAir:
             pln = self.fx.to_pln(float(amount), cur)
             if pln is None:
                 continue
-            times = sorted((x.get("date") if isinstance(x, dict) else x) or ""
-                           for x in f.get("departureDates") or [])
-            times = [x for x in times if x]
-            t = times[0][11:16] if times else None
+            if not self.sample_keys:  # diagnostyka: jakie pola zwraca API
+                deps = f.get("departureDates") or []
+                self.sample_keys = ",".join(sorted(f)) + " | dep: " + (
+                    ",".join(sorted(deps[0])) if deps and isinstance(deps[0], dict) else str(deps[:1]))
+            deps = []
+            for x in f.get("departureDates") or []:
+                if isinstance(x, dict):
+                    deps.append((x.get("date") or "", x.get("arrivalDate") or x.get("arrival") or ""))
+                elif x:
+                    deps.append((x, ""))
+            deps = sorted(x for x in deps if x[0])
+            t = deps[0][0][11:16] if deps else None
+            arr = deps[0][1] if deps else (f.get("arrivalDate") or "")
             o, d = f.get("departureStation"), f.get("arrivalStation")
-            out.append(Fare(NAME, o, d, day, t, pln, float(amount), cur, booking_url(o, d, day)))
+            out.append(Fare(NAME, o, d, day, t, pln, float(amount), cur, booking_url(o, d, day),
+                            arr[:10] or None, arr[11:16] or None))
         return out
 
     def timetable(self, o: str, d: str, start: dt.date, end: dt.date) -> list[Fare]:
@@ -164,6 +175,8 @@ class WizzAir:
             self.shared.samples.setdefault(k, v)
         if self.stopped:
             res.notes.append(self.stopped)
+        if self.sample_keys:
+            res.notes.append(f"pola: {self.sample_keys}")
         if self.failed and not self.ok:
             res.notes.append("wszystkie zapytania o ceny odrzucone (blokada?)")
         elif self.failed:

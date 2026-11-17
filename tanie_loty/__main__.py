@@ -76,9 +76,12 @@ def demo_data(origins: list[str], start: dt.date, end: dt.date) -> list[Provider
                     if rnd.random() < 0.5:
                         for a, b in ((o, d), (d, o)):
                             p = rnd.choice([39, 59, 79, 99, 129, 149, 199, 249, 349])
-                            r.fares.append(Fare(carrier, a, b, day.isoformat(),
-                                                f"{rnd.randint(6, 21):02d}:{rnd.choice(['05', '30', '45'])}",
-                                                p, p, "PLN", "https://example.com"))
+                            h = rnd.randint(6, 21)
+                            arr_h = h + rnd.randint(2, 4)
+                            arr_day = day + dt.timedelta(days=arr_h // 24)
+                            r.fares.append(Fare(carrier, a, b, day.isoformat(), f"{h:02d}:05",
+                                                p, p, "PLN", "https://example.com",
+                                                arr_day.isoformat(), f"{arr_h % 24:02d}:40"))
                     day += dt.timedelta(days=1)
         res.append(r)
     return res

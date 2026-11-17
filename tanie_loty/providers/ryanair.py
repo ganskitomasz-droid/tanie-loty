@@ -113,8 +113,10 @@ class Ryanair:
             if pln is None:
                 continue
             dep = f.get("departureDate") or ""
+            arr = f.get("arrivalDate") or ""
             fares.append(Fare(NAME, o, d, day, dep[11:16] or None, pln,
-                              float(price["value"]), cur, booking_url(o, d, day)))
+                              float(price["value"]), cur, booking_url(o, d, day),
+                              arr[:10] or None, arr[11:16] or None))
         return fares
 
     def fetch(self, origins: list[str], start: dt.date, end: dt.date) -> ProviderResult:

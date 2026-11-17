@@ -31,6 +31,8 @@ class Fare:
     price_orig: float     # cena w walucie oryginalnej
     currency: str
     url: str
+    arr_date: str | None = None   # YYYY-MM-DD przylotu (czas lokalny)
+    arr_time: str | None = None   # HH:MM przylotu
 
     def to_dict(self) -> dict:
         d = asdict(self)

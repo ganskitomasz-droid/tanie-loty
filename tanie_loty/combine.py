@@ -21,6 +21,10 @@ def _leg(f: Fare) -> dict:
     # Link do rezerwacji składa strona (oszczędza miejsce w results.json).
     d = {"carrier": f.carrier, "from": f.origin, "to": f.dest, "date": f.date,
          "time": f.time, "price": round(f.price)}
+    if f.arr_time:
+        d["arr"] = f.arr_time
+        if f.arr_date and f.arr_date != f.date:
+            d["arr_date"] = f.arr_date
     if f.currency != "PLN":
         d["orig"] = f"{f.price_orig:g} {f.currency}"
     return d

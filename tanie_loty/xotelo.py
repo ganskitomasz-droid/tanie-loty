@@ -34,6 +34,7 @@ class XoteloHotels:
         self.notes: list[str] = []
         self.types: dict[str, int] = {}
         self.rates_ok = 0
+        self.stat: dict[str, int] = {}
         self.rates_empty = 0
 
     def _get(self, path: str, params: dict):
@@ -78,18 +79,6 @@ class XoteloHotels:
         res = self._wikidata_geo(centre) if centre else None
         if res:
             cache[k] = res
-            return res
-        for q in (f"{city} {country}".strip(), city):
-            r = self._get("search", {"query": q, "location_type": "geo"})
-            items = (r or {}).get("list") or []
-            for it in items:
-                key = it.get("location_key") or ""
-                if key.startswith("g"):
-                    res = key.split("-")[0]
-                    break
-            if res or r is not None:
-                break
-        cache[k] = res
         return res
 
     def _hotels(self, loc: str, centre: dict, cache: dict) -> list[dict]:
@@ -154,9 +143,11 @@ class XoteloHotels:
         return best
 
     def fetch(self, targets: dict[str, dict], airports: dict[str, Airport], centres: dict, cache: dict) -> dict:
-        locs = cache.setdefault("xotelo_locations", {})
+        for old in ("xotelo_locations", "xotelo_offers"):  # wpisy z wersji z płatną wyszukiwarką
+            cache.pop(old, None)
+        locs = cache.setdefault("xotelo_geo", {})
         lists = cache.setdefault("xotelo_lists", {})
-        offers = cache.setdefault("xotelo_offers", {})
+        offers = cache.setdefault("xotelo_offers2", {})
         now = dt.datetime.now(dt.timezone.utc)
         out = {}
         for code, t in list(targets.items())[: self.max_dest]:
@@ -170,7 +161,15 @@ class XoteloHotels:
                     out[code] = old["offer"]
                 continue
             loc = self._location_key(cen.get("name") or a.city, a.country, locs, cen)
-            offer = self._cheapest(self._hotels(loc, cen, lists), t["checkin"], t["checkout"]) if loc else None
+            if not loc:
+                self.stat["bez identyfikatora miasta"] = self.stat.get("bez identyfikatora miasta", 0) + 1
+                continue  # nie zapisujemy porażki — spróbujemy w następnym przebiegu
+            hotels = self._hotels(loc, cen, lists)
+            if not hotels:
+                self.stat["brak obiektów po filtrach"] = self.stat.get("brak obiektów po filtrach", 0) + 1
+            offer = self._cheapest(hotels, t["checkin"], t["checkout"]) if hotels else None
+            if hotels and not offer:
+                self.stat["brak cen na te daty"] = self.stat.get("brak cen na te daty", 0) + 1
             if offer:
                 offer.update({"checkin": t["checkin"], "checkout": t["checkout"], "adults": self.adults,
                               "source": "Xotelo/TripAdvisor", "fetched": now.isoformat(timespec="minutes")})

@@ -227,11 +227,11 @@ def main(argv=None) -> int:
                 enrich_notes.append(f"noclegi LiteAPI: błąd {e}")
         else:
             try:
-                xh = XoteloHotels(Http(min_interval=0.6, timeout=40, retries=1), fx, cfg.get("hotels", {}))
+                xh = XoteloHotels(Http(min_interval=1.2, timeout=40, retries=1), fx, cfg.get("hotels", {}))
                 hotel_offers = xh.fetch(hotels_mod.hotel_targets(trips), airports, centres, cache.data)
                 types = ", ".join(f"{k}={v}" for k, v in sorted(xh.types.items(), key=lambda x: -x[1])[:8])
                 enrich_notes.append(f"noclegi Xotelo: {len(hotel_offers)} ofert; ceny: {xh.rates_ok} ok, "
-                                    f"{xh.rates_empty} pustych; {xh.stat}; wikidata: {xh.wd_samples}; typy: {types}" +
+                                    f"{xh.rates_empty} pustych; {xh.stat}; wikidata: {xh.wd_samples}; próbki cen: {xh.samples}; typy: {types}" +
                                     (f"; błędy: {'; '.join(xh.notes)}" if xh.notes else ""))
                 for k, v in xh.http.stats.items():
                     http.stats[k] += v
@@ -274,10 +274,14 @@ def main(argv=None) -> int:
     }
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    transit = json.loads((ROOT / "tanie_loty" / "transit.json").read_text(encoding="utf-8"))
     ap_out = {}
     for c in sorted(used):
         if c in airports:
             ap_out[c] = {**vars(airports[c]), **extra.get(c, {})}
+            if c in transit:
+                mode, eur_price, minutes, to = transit[c]
+                ap_out[c]["transit"] = {"mode": mode, "eur": eur_price, "min": minutes, "to": to}
     used_cc = {a.get("cc") for a in ap_out.values() if a.get("cc")}
     eur = 4.25 if args.demo else (fx.rates.get("EUR") or 4.25)
     payload = {"meta": meta, **trips, "airports": ap_out,

@@ -36,6 +36,7 @@ class XoteloHotels:
         self.rates_ok = 0
         self.stat: dict[str, int] = {}
         self.wd_samples: list[str] = []
+        self.samples: list[str] = []
         self.rates_empty = 0
 
     def _get(self, path: str, params: dict):
@@ -78,13 +79,15 @@ class XoteloHotels:
         # najpierw obiekty z populacją (miasta), potem najczęstszy identyfikator miejsca
         counts: dict[str, int] = {}
         for r in rows:
-            m = re.search(r"g(\d+)", r.get("ta", {}).get("value", ""))
+            v = r.get("ta", {}).get("value", "")
+            m = re.fullmatch(r"g?(\d+)", v) or re.search(r"-g(\d+)-", v)
             if not m:
                 continue
             g = "g" + m.group(1)
-            if "pop" in r:
+            if "pop" in r:  # miasto (ma populację) — jego identyfikator to identyfikator miejsca
                 return g
-            counts[g] = counts.get(g, 0) + 1
+            if v.startswith("g") or "-g" in v:
+                counts[g] = counts.get(g, 0) + 1
         return max(counts, key=counts.get) if counts else None
 
     def _location_key(self, city: str, country: str, cache: dict, centre: dict | None = None) -> str | None:
@@ -128,7 +131,7 @@ class XoteloHotels:
             pr = h.get("price_ranges") or {}
             hotels.append({"key": h.get("key"), "name": name, "type": h.get("accommodation_type"),
                            "rating": rating, "reviews": rs.get("count"), "km": round(km, 1),
-                           "url": h.get("url"), "min": pr.get("minimum")})
+                           "url": h.get("url"), "min": pr.get("minimum"), "max": pr.get("maximum")})
         if ok:
             cache[loc] = {"fetched": dt.date.today().isoformat(), "hotels": hotels}
         return hotels
@@ -148,7 +151,16 @@ class XoteloHotels:
                 continue
             self.rates_ok += 1
             cheapest = min(rates, key=lambda x: x["rate"])
-            per_night = self.fx.to_pln(cheapest["rate"], "EUR") * rooms   # cena za pokój za noc × pokoje
+            rate = cheapest["rate"]
+            typical_max = h.get("max") or 0
+            # Jeśli „cena za noc” jest wyraźnie wyższa niż typowy przedział obiektu, a pobyt ma kilka nocy,
+            # to w praktyce jest to cena za cały pobyt — dzielimy przez liczbę nocy.
+            if nights > 1 and typical_max and rate > 1.6 * typical_max and rate / nights <= 1.6 * typical_max:
+                rate = rate / nights
+                self.stat["cena za pobyt → za noc"] = self.stat.get("cena za pobyt → za noc", 0) + 1
+            if len(self.samples) < 6:
+                self.samples.append(f"{h['name'][:25]}: {cheapest['rate']}€ ({nights} n., typowo {h.get('min')}–{typical_max})")
+            per_night = self.fx.to_pln(rate, "EUR") * rooms   # cena za pokój za noc × pokoje
             total = per_night * nights
             if best is None or total < best["total"]:
                 best = {"name": h["name"], "rating": round(h["rating"] * 2, 1), "rating5": h["rating"],
@@ -158,11 +170,12 @@ class XoteloHotels:
         return best
 
     def fetch(self, targets: dict[str, dict], airports: dict[str, Airport], centres: dict, cache: dict) -> dict:
-        for old in ("xotelo_locations", "xotelo_offers"):  # wpisy z wersji z płatną wyszukiwarką
+        for old in ("xotelo_locations", "xotelo_offers", "xotelo_offers2"):  # wpisy z wersji z płatną wyszukiwarką
             cache.pop(old, None)
         locs = cache.setdefault("xotelo_geo", {})
-        lists = cache.setdefault("xotelo_lists", {})
-        offers = cache.setdefault("xotelo_offers2", {})
+        cache.pop("xotelo_lists", None)  # stara wersja bez typowej ceny maksymalnej
+        lists = cache.setdefault("xotelo_lists2", {})
+        offers = cache.setdefault("xotelo_offers3", {})
         now = dt.datetime.now(dt.timezone.utc)
         out = {}
         for code, t in list(targets.items())[: self.max_dest]:

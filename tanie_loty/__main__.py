@@ -284,13 +284,32 @@ def main(argv=None) -> int:
                 ap_out[c]["transit"] = {"mode": mode, "eur": eur_price, "min": minutes, "to": to}
     used_cc = {a.get("cc") for a in ap_out.values() if a.get("cc")}
     eur = 4.25 if args.demo else (fx.rates.get("EUR") or 4.25)
-    payload = {"meta": meta, **trips, "airports": ap_out,
+    # Format zwarty: każdy lot (odcinek) zapisany raz w "legs", kombinacje odwołują się do indeksów.
+    leg_idx: dict[str, int] = {}
+    legs: list[dict] = []
+
+    def li(leg: dict) -> int:
+        k = json.dumps(leg, sort_keys=True, ensure_ascii=False)
+        if k not in leg_idx:
+            leg_idx[k] = len(legs)
+            legs.append(leg)
+        return leg_idx[k]
+
+    packed = {}
+    for kind, lst in trips.items():
+        rows = []
+        for t in lst:
+            rows.append([li(t["out"]), li(t["ret"]) if "ret" in t else -1, t["dest"], t.get("back") or "",
+                         t.get("nights", 0), t["total"], t.get("vs"), t.get("km")])
+        packed[kind] = rows
+    payload = {"meta": meta, "format": 2, "legs": legs, **packed, "airports": ap_out,
                "pli": {cc: pli[cc] for cc in sorted(used_cc) if cc in pli},
                "cost": {k: v for k, v in cfg.get("cost", {}).items() if not k.startswith("_")}, "eur": eur,
                "hotels": hotel_offers, "hotel_criteria": {k: v for k, v in cfg.get("hotels", {}).items()
                                                           if not k.startswith("_")}}
-    (out / "results.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
-                                      encoding="utf-8")
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    (out / "results.json").write_text(body, encoding="utf-8")
+    meta["size_mb"] = round(len(body.encode()) / 1e6, 1)
     shutil.copy(ROOT / "site" / "index.html", out / "index.html")
     if hist:
         (out / "history.json").write_text(json.dumps(hist, separators=(",", ":")), encoding="utf-8")
@@ -303,7 +322,7 @@ def main(argv=None) -> int:
            f"HTTP: {json.dumps(meta['http'])}"]
         + [f"Pierwszy błąd {k}: {v}" for k, v in http.samples.items()]
         + [
-           f"Kursy: {fx_source}, czas: {meta['seconds']} s"])
+           f"Kursy: {fx_source}, czas: {meta['seconds']} s, results.json: {meta.get('size_mb')} MB"])
     log.info("\n%s", summary)
     gh_annotation("notice" if fares else "warning", "Wynik wyszukiwania", summary)
     return 0 if fares or args.demo else 1

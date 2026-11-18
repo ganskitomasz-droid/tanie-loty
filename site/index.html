@@ -372,6 +372,14 @@ function validDate(id) {
   if (!v) return "";
   const [w0, w1] = DATA.meta.window;
   if (v < w0 || v > w1) {
+    // pomyłka w roku (np. 2026 zamiast 2027): jeśli ten sam dzień w innym roku mieści się w okresie — użyj go
+    for (const dy of [1, -1]) {
+      const alt = String(+v.slice(0, 4) + dy) + v.slice(4);
+      if (alt >= w0 && alt <= w1) {
+        warnings.push(`Data ${v.split("-").reverse().join(".")} — zakładam rok ${alt.slice(0, 4)}.`);
+        return alt;
+      }
+    }
     warnings.push(`Data ${v.split("-").reverse().join(".")} jest poza przeszukanym okresem (${fmtDay(w0)} – ${fmtDay(w1)} ${w1.slice(0, 4)}) — pomijam ją. Sprawdź rok.`);
     return "";
   }
@@ -401,8 +409,27 @@ function render() {
   $("#more").hidden = rows.length <= shown;
 }
 
+// Rozpakowanie formatu zwartego (format 2): [wylot, powrót, kierunek, powrót z, noce, suma, vs, km]
+function unpack(data) {
+  if (data.format !== 2) return data;
+  const L = data.legs;
+  for (const [kind, type] of [["rt", "rt"], ["oj", "oj"], ["ow", "ow"]]) {
+    data[kind] = data[kind].map(r => {
+      const t = { type, out: L[r[0]], dest: r[2], total: r[5] };
+      if (r[1] >= 0) t.ret = L[r[1]];
+      if (r[3]) t.back = r[3];
+      if (r[4]) t.nights = r[4];
+      if (r[6] != null) t.vs = r[6];
+      if (r[7] != null) t.km = r[7];
+      return t;
+    });
+  }
+  return data;
+}
+
 function init(data) {
-  DATA = data;
+  DATA = unpack(data);
+  data = DATA;
   const m = data.meta, c = m.config;
   const when = new Date(m.generated).toLocaleString("pl-PL", { dateStyle: "medium", timeStyle: "short" });
   $("#sub").textContent = `Aktualizacja: ${when} · loty ${fmtDay(m.window[0])} – ${fmtDay(m.window[1])} · z ${c.origins.join(", ")}`;

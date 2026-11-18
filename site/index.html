@@ -330,8 +330,8 @@ function filtered() {
   const tmin = +$("#f-temp").value || null, deal = $("#f-deal").checked;
   let rows = DATA[tab].filter(t => {
     if (t.total > max) return false;
-    // przy podanych obu datach liczba nocy wynika z dat — filtr nocy pomijamy
-    if (t.ret && !(dOut && dIn) && (t.nights < nmin || t.nights > nmax)) return false;
+    // filtr nocy działa zawsze — przy elastycznych datach wyznacza długość pobytu
+    if (t.ret && (t.nights < nmin || t.nights > nmax)) return false;
     if (dOut && !near(t.out.date, dOut)) return false;
     if (dIn && t.ret && !near(t.ret.date, dIn)) return false;
     if (month && !t.out.date.startsWith(month)) return false;

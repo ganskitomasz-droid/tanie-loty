@@ -52,6 +52,7 @@ jobs:
           IN_NMIN: ${{ inputs.nights_min }}
           IN_NMAX: ${{ inputs.nights_max }}
           IN_MAX: ${{ inputs.max_total }}
+          DEBUG_ROUTE: WAW-LCA:2026-12-15:2026-12-25
         run: |
           python -m tanie_loty --out public \
             --origins "$IN_ORIGINS" --months "$IN_MONTHS" \

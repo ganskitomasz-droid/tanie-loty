@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
+import os
 import re
 import time
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 
 from ..fx import Fx
@@ -40,6 +42,11 @@ class WizzAir:
         self.ok = 0
         self.failed = 0
         self.sample_keys = ""
+        self.ptypes: Counter = Counter()
+        # DEBUG_ROUTE=WAW-LCA:2026-12-15:2026-12-25 — surowe wpisy kalendarza dla jednej trasy
+        dbg = os.environ.get("DEBUG_ROUTE", "")
+        self.debug = (dbg.split(":")[0].split("-") + dbg.split(":")[1:3]) if dbg.count(":") == 2 else None
+        self.debug_rows: list[str] = []
         self.consecutive = 0
         self.deadline = time.monotonic() + 15 * 60   # maks. 15 minut na Wizz Air
         self.stopped = ""
@@ -87,6 +94,11 @@ class WizzAir:
         for f in flights or []:
             price = f.get("price") or {}
             amount = price.get("amount")
+            self.ptypes[str(f.get("priceType"))] += 1
+            if self.debug and {f.get("departureStation"), f.get("arrivalStation")} == set(self.debug[:2]) \
+                    and self.debug[2] <= (f.get("departureDate") or "")[:10] <= self.debug[3]:
+                self.debug_rows.append(f"{f.get('departureStation')}-{f.get('arrivalStation')} "
+                                       f"{(f.get('departureDate') or '')[:10]} {f.get('priceType')} {amount}")
             if f.get("priceType") in ("soldOut", "checkPrice") or not amount:
                 continue
             day = (f.get("departureDate") or "")[:10]
@@ -175,8 +187,9 @@ class WizzAir:
             self.shared.samples.setdefault(k, v)
         if self.stopped:
             res.notes.append(self.stopped)
-        if self.sample_keys:
-            res.notes.append(f"pola: {self.sample_keys}")
+        res.notes.append("priceType: " + ", ".join(f"{k}={v}" for k, v in self.ptypes.most_common()))
+        if self.debug_rows:
+            res.notes.append("DEBUG " + " | ".join(sorted(self.debug_rows)))
         if self.failed and not self.ok:
             res.notes.append("wszystkie zapytania o ceny odrzucone (blokada?)")
         elif self.failed:

@@ -31,10 +31,11 @@ def _leg(f: Fare) -> dict:
 
 
 def _best_per_day(cands: list[tuple], k: int) -> list[tuple]:
-    """Zostawia k najtańszych kandydatów dla każdej daty wylotu (c[1])."""
-    by_day: dict[str, list[tuple]] = defaultdict(list)
+    """Zostawia k najtańszych kandydatów dla każdej pary (data wylotu c[1], liczba nocy c[2]),
+    żeby przy wyborze konkretnych dat wylotu i powrotu żaden termin nie wypadł."""
+    by_day: dict[tuple, list[tuple]] = defaultdict(list)
     for c in cands:
-        by_day[c[1]].append(c)
+        by_day[(c[1], c[2])].append(c)
     out: list[tuple] = []
     for lst in by_day.values():
         out += heapq.nsmallest(k, lst, key=lambda c: c[0])
@@ -49,8 +50,8 @@ def combine(
     nights_max: int = 5,
     openjaw_km: int = 350,
     max_total: float | None = None,
-    per_day: int = 2,
-    cap: int = 20000,
+    per_day: int = 1,
+    cap: int = 60000,
 ) -> dict[str, list[dict]]:
     O = set(origins)
     out_f = [f for f in fares if f.origin in O and f.dest not in O]

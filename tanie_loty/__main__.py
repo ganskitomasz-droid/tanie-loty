@@ -214,6 +214,10 @@ def main(argv=None) -> int:
             try:
                 lh = hotels_mod.LiteApiHotels(http, fx, key, cfg.get("hotels", {}))
                 hotel_offers = lh.fetch(hotels_mod.hotel_targets(trips), airports, centres, cache.data)
+                if key.startswith("sand"):  # klucz testowy: dane przykładowe, nie prawdziwe ceny
+                    for o in hotel_offers.values():
+                        o["sandbox"] = True
+                    enrich_notes.append("UWAGA: klucz testowy LiteAPI (sandbox) — ceny noclegów przykładowe")
                 r = sorted(lh.ratings)
                 enrich_notes.append(f"noclegi LiteAPI: {len(hotel_offers)} ofert; {lh.sample}; "
                                     f"oceny: {r[0] if r else '-'}–{r[-1] if r else '-'} (n={len(r)})")

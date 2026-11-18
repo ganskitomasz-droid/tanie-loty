@@ -247,13 +247,16 @@ function stay(t) {
 }
 
 // Prawdziwa oferta z LiteAPI dla kierunku (najtańsza spełniająca kryteria), jeśli jest.
-const offerFor = t => (DATA.hotels || {})[t.dest] || null;
+const offerFor = t => { const o = (DATA.hotels || {})[t.dest]; return o && !o.sandbox ? o : null; };
+const sandboxFor = t => { const o = (DATA.hotels || {})[t.dest]; return o && o.sandbox ? o : null; };
 const offerMatches = (t, o) => o && o.checkin === (t.out.arr_date || t.out.date) && o.checkout === (t.ret && t.ret.date);
 const roomsFor = n => Math.max(1, Math.ceil(n / 2));
 
 function hotelBox(t) {
   const h = stay(t);
   if (!h) return "";
+  const sb = sandboxFor(t);
+  const sbNote = offerMatches(t, sb) ? `<span style="color:#c0392b">Test LiteAPI (klucz sandbox): ${esc(sb.name)}, ${sb.total} zł — dane przykładowe, nie prawdziwa cena</span>` : "";
   const o = offerFor(t);
   if (offerMatches(t, o)) {
     const q = new URLSearchParams({ ss: `${o.name}, ${h.city}`, checkin: o.checkin, checkout: o.checkout,
@@ -272,6 +275,7 @@ function hotelBox(t) {
   const who = `${a} ${a === 1 ? "dorosły" : "dorosłych"}${k ? `, ${k} ${k === 1 ? "dziecko" : "dzieci"}` : ""}`;
   return `<div class="hotel"><b>Nocleg: ${esc(h.city)}</b>
     <span>${fmtDay(h.checkin)} → ${fmtDay(h.checkout)} · ${h.nights} ${h.nights === 1 ? "noc" : h.nights < 5 ? "noce" : "nocy"} · ${who}</span>
+    ${sbNote}
     ${cost(t) ? `<span>${cost(t).real ? `Na podstawie oferty z ${fmtDay(o.checkin)}: pokój ok. ${cost(t).room} zł/noc` : `Szacunek: pokój ok. ${cost(t).room} zł/noc`}</span>` : ""}
     <div class="crit"><span>≤ 3 km od centrum</span><span>bez hosteli</span><span>ocena 7+</span><span>łazienka w pokoju</span><span>od najtańszych</span></div>
     <a class="btn" href="${esc(h.url)}" target="_blank" rel="noopener">Najtańszy nocleg na Booking.com ↗</a></div>`;

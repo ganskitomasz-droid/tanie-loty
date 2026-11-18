@@ -122,7 +122,7 @@
     </select></label>
     <label>Kierunek / kraj<input id="f-q" type="search" placeholder="np. Hiszpania, BCN"></label>
     <label>Sortuj<select id="f-sort"><option value="price">od najtańszych lotów</option>
-      <option value="cost" class="rt-only">wg szac. kosztu całego wyjazdu</option>
+      <option value="cost" class="rt-only">wg kosztu loty + nocleg</option>
       <option value="deal">największa okazja (vs średnia)</option><option value="date">wg daty</option></select></label>
     <label>Temp. w dzień<select id="f-temp"><option value="">dowolna</option><option value="15">min. 15°C</option>
       <option value="20">min. 20°C</option><option value="25">min. 25°C</option></select></label>
@@ -185,9 +185,8 @@ function cost(t) {
   const { a } = pax(), n = seats(), rooms = Math.ceil(a / 2);
   const room = DATA.cost.hotel_room_eur * f;                 // pokój / noc
   const lodging = rooms * room * nights / n;                  // nocleg na osobę
-  const daily = DATA.cost.daily_eur * f * (nights + 1);       // jedzenie + transport lokalny na osobę
-  const total = Math.round(t.total + lodging + daily);
-  return { total, room: Math.round(room), lodging: Math.round(lodging), daily: Math.round(daily), nights, pli, known: !!(DATA.pli || {})[cc] };
+  const total = Math.round(t.total + lodging);                // loty + nocleg na osobę
+  return { total, room: Math.round(room), lodging: Math.round(lodging), nights, pli, known: !!(DATA.pli || {})[cc] };
 }
 
 // --- cena na tle średniej i historii --------------------------------------------------------
@@ -275,7 +274,7 @@ function card(t) {
   if (w) badges.push(`<span class="badge">${w.html}</span>`);
   if (cen) badges.push(`<span class="badge" title="Odległość w linii prostej">✈ lotnisko ok. ${Math.round(cen.km)} km od centrum ${esc(cen.name)}</span>`);
   return `<div class="trip${hb ? "" : " noh"}">
-    <div class="price">${t.total * seats()}<small> zł</small>${seats() > 1 ? `<span class="pp">${t.total} zł/os. × ${seats()}</span>` : ""}${c ? `<span class="cost" title="Szacunek na osobę: lot ${t.total} zł + nocleg ${c.lodging} zł (${c.nights} ${c.nights === 1 ? "noc" : "nocy"}, pokój ok. ${c.room} zł/noc) + jedzenie i transport lokalny ${c.daily} zł. Poziom cen kraju: ${c.pli}${c.known ? "" : " (brak danych — średnia UE)"} (UE = 100).">Cały wyjazd ≈ ${c.total.toLocaleString("pl-PL")} zł<small>/os. (szacunek)</small></span>` : ""}</div>
+    <div class="price">${t.total * seats()}<small> zł</small>${seats() > 1 ? `<span class="pp">${t.total} zł/os. × ${seats()}</span>` : ""}${c ? `<span class="cost" title="Na osobę: loty ${t.total} zł (dokładnie) + nocleg ok. ${c.lodging} zł (${c.nights} ${c.nights === 1 ? "noc" : "nocy"}, pokój ok. ${c.room} zł/noc — szacunek z poziomu cen kraju ${c.pli}${c.known ? "" : ", brak danych — średnia UE"}; UE = 100).">Loty + nocleg ≈ ${c.total.toLocaleString("pl-PL")} zł<small>/os. (nocleg szacunkowo)</small></span>` : ""}</div>
     <div><div class="dest">${title}</div><div class="when">${when}${extra}</div>${badges.length ? `<div class="badges">${badges.join("")}</div>` : ""}</div>
     <div class="legs">${leg(t.out, "Wylot")}${t.ret ? leg(t.ret, "Powrót") : ""}
     ${sameTrip(t) ? `<div class="book"><a href="${esc(bookUrl(t.out, t.ret))}" target="_blank" rel="noopener">Sprawdź w obie strony w ${esc(t.out.carrier)} ↗</a></div>` : ""}</div>
@@ -382,7 +381,7 @@ function init(data) {
     + `\nKursy walut: ${m.fx}\nCzas wyszukiwania: ${m.seconds} s\nHTTP: ${JSON.stringify(m.http)}`
     + `\nOpen-jaw: lotniska do ${c.openjaw_km} km od siebie`
     + `\nDodatki: ${(m.enrich || []).join("; ")}`
-    + `\nSzacunek kosztu: pokój ${data.cost.hotel_room_eur} €/noc i ${data.cost.daily_eur} €/os./dzień przy średnich cenach UE, `
+    + `\nLoty + nocleg: loty dokładnie, nocleg szacunkowo — pokój ${data.cost.hotel_room_eur} €/noc przy średnich cenach UE, `
     + `przeliczane wskaźnikiem cen restauracji i hoteli kraju (${m.pli_source}). Parametry: config.json → cost.`
     + `\nPogoda: Open-Meteo (średnie z 3 lat; prognoza dla terminów w ciągu 16 dni).`;
   render();

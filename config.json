@@ -8,8 +8,7 @@
   "providers": ["ryanair", "wizzair"],
   "pages_url": "https://ganskitomasz-droid.github.io/tanie-loty/",
   "cost": {
-    "_opis": "Szacunek kosztu wyjazdu przy średnim poziomie cen UE (wskaźnik 100); dla kraju przeliczany wskaźnikiem cen restauracji i hoteli.",
-    "hotel_room_eur": 85,
-    "daily_eur": 40
+    "_opis": "Szacunek ceny pokoju 2-os./noc przy średnim poziomie cen UE (wskaźnik 100); dla kraju przeliczany wskaźnikiem cen restauracji i hoteli Eurostatu.",
+    "hotel_room_eur": 85
   }
 }

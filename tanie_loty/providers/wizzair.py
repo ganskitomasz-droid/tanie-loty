@@ -85,7 +85,8 @@ class WizzAir:
             if not code:
                 continue
             airports[code] = Airport(code, c.get("shortName", ""), c.get("shortName", ""),
-                                     c.get("countryName", ""), c.get("latitude"), c.get("longitude"))
+                                     c.get("countryName", ""), c.get("latitude"), c.get("longitude"),
+                                     (c.get("countryCode") or "").upper())
             conns[code] = {x["iata"] for x in c.get("connections", []) if x.get("iata")}
         return airports, conns
 

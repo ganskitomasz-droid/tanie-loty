@@ -45,6 +45,12 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
+      - name: Pamięć podręczna (klimat, centra miast, poziom cen)
+        uses: actions/cache@v4
+        with:
+          path: cache
+          key: enrich-${{ github.run_id }}
+          restore-keys: enrich-
       - name: Wyszukiwanie
         env:
           IN_ORIGINS: ${{ inputs.origins }}

@@ -12,10 +12,11 @@ class Airport:
     country: str = ""
     lat: float | None = None
     lon: float | None = None
+    cc: str = ""          # kod kraju ISO 3166-1 alpha-2, wielkimi literami
 
     def merge(self, other: "Airport") -> None:
         """Uzupełnia brakujące pola danymi z innego źródła."""
-        for f in ("name", "city", "country", "lat", "lon"):
+        for f in ("name", "city", "country", "lat", "lon", "cc"):
             if not getattr(self, f) and getattr(other, f):
                 setattr(self, f, getattr(other, f))
 

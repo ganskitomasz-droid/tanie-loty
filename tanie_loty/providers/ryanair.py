@@ -39,6 +39,7 @@ def _airport(a: dict) -> Airport:
         country=(a.get("country") or {}).get("name", "") or a.get("countryName", ""),
         lat=coords.get("latitude"),
         lon=coords.get("longitude"),
+        cc=((a.get("country") or {}).get("code") or a.get("countryCode") or "").upper(),
     )
 
 

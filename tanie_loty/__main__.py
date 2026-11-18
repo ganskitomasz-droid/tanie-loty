@@ -12,6 +12,7 @@ import sys
 import time
 from pathlib import Path
 
+from . import enrich
 from .combine import combine
 from .fx import Fx
 from .http import Http
@@ -64,6 +65,9 @@ def demo_data(origins: list[str], start: dt.date, end: dt.date) -> list[Provider
         "TFS": Airport("TFS", "Teneryfa Płd.", "Teneryfa", "Hiszpania", 28.04, -16.57),
         "ATH": Airport("ATH", "Ateny", "Ateny", "Grecja", 37.94, 23.94),
     }
+    ccs = {"Polska": "PL", "Hiszpania": "ES", "Włochy": "IT", "Portugalia": "PT", "Grecja": "GR"}
+    for a in ap.values():
+        a.cc = ccs.get(a.country, "")
     res = []
     for carrier in ("Ryanair", "Wizz Air"):
         r = ProviderResult(carrier, airports=ap, routes=8)
@@ -143,6 +147,80 @@ def main(argv=None) -> int:
     used = {c for lst in trips.values() for t in lst for c in (t["dest"], t.get("back"),
             t["out"]["from"], t.get("ret", {}).get("from"))} - {None}
 
+    # --- wzbogacenie: centrum, pogoda, poziom cen, historia --------------------------------
+    dests = sorted({t[k] for lst in trips.values() for t in lst for k in ("dest", "back") if t.get(k)})
+    extra: dict[str, dict] = {c: {} for c in dests}
+    pli, pli_src, hist = {}, "-", None
+    months = sorted({dt.date.fromisoformat(m + "-01") for m in
+                     {t["out"]["date"][:7] for lst in trips.values() for t in lst}})
+    enrich_notes = []
+    if args.demo:
+        rnd = random.Random(1)
+        for c in dests:
+            extra[c]["centre"] = {"name": airports[c].city, "km": round(rnd.uniform(3, 45), 1)}
+            extra[c]["climate"] = {f"{m.month:02d}": {"tmax": round(rnd.uniform(8, 26), 1),
+                                   "tmin": round(rnd.uniform(0, 15), 1), "rain": round(rnd.uniform(1, 14), 1),
+                                   "sun": round(rnd.uniform(2, 9), 1)} for m in months}
+            extra[c]["forecast"] = {(start + dt.timedelta(days=i)).isoformat():
+                                    {"tmax": rnd.randint(10, 25), "tmin": rnd.randint(2, 14),
+                                     "pp": rnd.randint(0, 90), "code": rnd.choice([0, 1, 2, 3, 61, 80])}
+                                    for i in range(16)}
+        pli = dict(enrich.PLI_FALLBACK)
+        pli_src = "demo"
+        hinfo = {enrich.fare_key(t[k]): {"n": 5, "since": start.isoformat(), "avg": t[k]["price"] + rnd.randint(-30, 40),
+                                         "min": t[k]["price"] - rnd.randint(0, 20), "chg": rnd.choice([-40, -10, 0, 15, 30])}
+                 for lst in trips.values() for t in lst for k in ("out", "ret") if k in t}
+    else:
+        cache = enrich.Cache(ROOT / "cache" / "enrich.json")
+        hinfo = {}
+        try:
+            centres = enrich.city_centres(http, airports, dests, cache)
+            points = {}
+            for c in dests:
+                cen, a = centres.get(c), airports.get(c)
+                if cen:
+                    extra[c]["centre"] = {"name": cen["name"], "km": cen["km"]}
+                    points[c] = (cen["lat"], cen["lon"])
+                elif a and a.lat is not None:
+                    points[c] = (a.lat, a.lon)
+            for c, v in enrich.climate(http, points, months, cache).items():
+                if v:
+                    extra[c]["climate"] = v
+            soon = (dt.date.today() + dt.timedelta(days=15)).isoformat()
+            near = {t["dest"] for lst in trips.values() for t in lst if t["out"]["date"] <= soon}
+            for c, v in enrich.forecast(http, {c: p for c, p in points.items() if c in near}).items():
+                extra[c]["forecast"] = v
+        except Exception as e:  # dodatki nie mogą wywrócić wyszukiwania
+            log.exception("Błąd pogody/centrów")
+            enrich_notes.append(f"pogoda/centra: {e}")
+        try:
+            pli, pli_src = enrich.price_levels(http, cache)
+        except Exception as e:
+            log.exception("Błąd Eurostat")
+            pli, pli_src = dict(enrich.PLI_FALLBACK), f"tabela zapasowa ({e})"
+        try:
+            hist, hinfo = enrich.update_history(http, cfg.get("pages_url"), fares)
+        except Exception as e:
+            log.exception("Błąd historii cen")
+            enrich_notes.append(f"historia: {e}")
+        cache.save()
+
+    medians = enrich.destination_medians(trips)
+    for kind, lst in trips.items():
+        for t in lst:
+            med = medians[kind].get(t["dest"])
+            if med:
+                t["vs"] = round((t["total"] - med) / med * 100)
+            for k in ("out", "ret"):
+                h = hinfo.get(enrich.fare_key(t[k])) if k in t else None
+                if h and h.get("n", 0) >= 2:
+                    t[k]["h"] = h
+    with_clim = sum(1 for c in dests if extra[c].get("climate"))
+    with_cen = sum(1 for c in dests if extra[c].get("centre"))
+    enrich_notes.append(f"kierunki: {len(dests)}, klimat: {with_clim}, centrum: {with_cen}, "
+                        f"prognoza: {sum(1 for c in dests if extra[c].get('forecast'))}, poziom cen: {pli_src}, "
+                        f"historia: {len(hist['runs']) if hist else 0} przebiegów")
+
     providers = [{"name": r.name, "routes": r.routes, "fares": len(r.fares), "notes": r.notes}
                  for r in results]
     meta = {
@@ -150,20 +228,31 @@ def main(argv=None) -> int:
         "window": [start.isoformat(), end.isoformat()],
         "config": cfg, "fx": fx_source, "providers": providers,
         "http": http.summary(), "seconds": round(time.time() - t0),
+        "enrich": enrich_notes, "pli_source": pli_src, "medians_note": "mediana cen kierunku w przeszukanym okresie",
     }
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    payload = {"meta": meta, **trips,
-               "airports": {c: vars(airports[c]) for c in sorted(used) if c in airports}}
+    ap_out = {}
+    for c in sorted(used):
+        if c in airports:
+            ap_out[c] = {**vars(airports[c]), **extra.get(c, {})}
+    used_cc = {a.get("cc") for a in ap_out.values() if a.get("cc")}
+    eur = 4.25 if args.demo else (fx.rates.get("EUR") or 4.25)
+    payload = {"meta": meta, **trips, "airports": ap_out,
+               "pli": {cc: pli[cc] for cc in sorted(used_cc) if cc in pli},
+               "cost": {k: v for k, v in cfg.get("cost", {}).items() if not k.startswith("_")}, "eur": eur}
     (out / "results.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
                                       encoding="utf-8")
     shutil.copy(ROOT / "site" / "index.html", out / "index.html")
+    if hist:
+        (out / "history.json").write_text(json.dumps(hist, separators=(",", ":")), encoding="utf-8")
 
     summary = "\n".join(
         [f"{pr['name']}: {pr['routes']} tras, {pr['fares']} cen" +
          (f" — {'; '.join(pr['notes'])}" if pr["notes"] else "") for pr in providers]
         + [f"Kombinacje: {len(trips['rt'])} w obie strony, {len(trips['oj'])} open-jaw, "
-           f"{len(trips['ow'])} w jedną stronę", f"HTTP: {json.dumps(meta['http'])}"]
+           f"{len(trips['ow'])} w jedną stronę", "Dodatki: " + "; ".join(enrich_notes),
+           f"HTTP: {json.dumps(meta['http'])}"]
         + [f"Pierwszy błąd {k}: {v}" for k, v in http.samples.items()]
         + [
            f"Kursy: {fx_source}, czas: {meta['seconds']} s"])

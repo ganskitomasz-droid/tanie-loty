@@ -227,7 +227,7 @@ def main(argv=None) -> int:
                 enrich_notes.append(f"noclegi LiteAPI: błąd {e}")
         else:
             try:
-                xh = XoteloHotels(Http(min_interval=1.2, timeout=40, retries=1), fx, cfg.get("hotels", {}))
+                xh = XoteloHotels(Http(min_interval=0.8, timeout=40, retries=1), fx, cfg.get("hotels", {}))
                 hotel_offers = xh.fetch(hotels_mod.hotel_targets(trips), airports, centres, cache.data)
                 types = ", ".join(f"{k}={v}" for k, v in sorted(xh.types.items(), key=lambda x: -x[1])[:8])
                 enrich_notes.append(f"noclegi Xotelo: {len(hotel_offers)} ofert; ceny: {xh.rates_ok} ok, "

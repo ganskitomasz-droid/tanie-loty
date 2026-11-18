@@ -30,7 +30,8 @@ class XoteloHotels:
         self.adults = int(criteria.get("adults", 2))
         self.refresh = float(criteria.get("refresh_hours", 24))
         self.max_dest = int(criteria.get("max_destinations", 80))
-        self.candidates = int(criteria.get("candidates", 10))
+        self.candidates = int(criteria.get("candidates", 15))
+        self.max_new = int(criteria.get("max_new_per_run", 30))
         self.notes: list[str] = []
         self.types: dict[str, int] = {}
         self.rates_ok = 0
@@ -53,7 +54,7 @@ class XoteloHotels:
         q = f"""SELECT ?ta ?pop ?dist WHERE {{
           SERVICE wikibase:around {{ ?item wdt:P625 ?loc .
             bd:serviceParam wikibase:center "Point({centre['lon']} {centre['lat']})"^^geo:wktLiteral .
-            bd:serviceParam wikibase:radius "10" . bd:serviceParam wikibase:distance ?dist . }}
+            bd:serviceParam wikibase:radius "25" . bd:serviceParam wikibase:distance ?dist . }}
           ?item wdt:P3134 ?ta . OPTIONAL {{ ?item wdt:P1082 ?pop }}
         }} ORDER BY DESC(?pop) ASC(?dist) LIMIT 40"""
         data = self.http.json("GET", "https://query.wikidata.org/sparql", "wikidata",
@@ -103,15 +104,18 @@ class XoteloHotels:
         hit = cache.get(loc)
         if hit and hit.get("fetched", "") >= (dt.date.today() - dt.timedelta(days=30)).isoformat():
             return hit["hotels"]
-        rows, ok = [], False
-        for offset in (0, 100):
-            r = self._get("list", {"location_key": loc, "limit": 100, "offset": offset, "sort": "distance"})
+        # Dwie listy: „best_value” (dobry stosunek jakości do ceny — tu są tanie, dobrze oceniane
+        # obiekty) i „distance” (najbliżej centrum). Kolejność best_value decyduje o wyborze kandydatów.
+        rows, ok, seen = [], False, set()
+        for sort in ("best_value", "distance"):
+            r = self._get("list", {"location_key": loc, "limit": 100, "offset": 0, "sort": sort})
             if r is None:
-                break
+                continue
             ok = True
-            rows += r.get("list") or []
-            if len(r.get("list") or []) < 100:
-                break
+            for h in r.get("list") or []:
+                if h.get("key") not in seen:
+                    seen.add(h.get("key"))
+                    rows.append(h)
         hotels = []
         for h in rows:
             t = (h.get("accommodation_type") or "").lower()
@@ -139,7 +143,7 @@ class XoteloHotels:
     def _cheapest(self, hotels: list[dict], checkin: str, checkout: str) -> dict | None:
         nights = (dt.date.fromisoformat(checkout) - dt.date.fromisoformat(checkin)).days
         rooms = max(1, math.ceil(self.adults / 2))
-        # najpierw obiekty z najniższą typową ceną
+        # najpierw obiekty z najniższą typową ceną (jeśli znana), dalej w kolejności „best value”
         cands = sorted(hotels, key=lambda h: (h["min"] is None, h["min"] or 0))[: self.candidates]
         best = None
         for h in cands:
@@ -170,14 +174,16 @@ class XoteloHotels:
         return best
 
     def fetch(self, targets: dict[str, dict], airports: dict[str, Airport], centres: dict, cache: dict) -> dict:
-        for old in ("xotelo_locations", "xotelo_offers", "xotelo_offers2"):  # wpisy z wersji z płatną wyszukiwarką
+        for old in ("xotelo_locations", "xotelo_offers", "xotelo_offers2", "xotelo_offers3"):  # wpisy z wersji z płatną wyszukiwarką
             cache.pop(old, None)
         locs = cache.setdefault("xotelo_geo", {})
-        cache.pop("xotelo_lists", None)  # stara wersja bez typowej ceny maksymalnej
-        lists = cache.setdefault("xotelo_lists2", {})
-        offers = cache.setdefault("xotelo_offers3", {})
+        for old in ("xotelo_lists", "xotelo_lists2"):  # starsze wersje list (sortowanie po odległości)
+            cache.pop(old, None)
+        lists = cache.setdefault("xotelo_lists3", {})
+        offers = cache.setdefault("xotelo_offers4", {})
         now = dt.datetime.now(dt.timezone.utc)
         out = {}
+        new = 0
         for code, t in list(targets.items())[: self.max_dest]:
             cen, a = centres.get(code), airports.get(code)
             if not cen or not a:
@@ -188,6 +194,10 @@ class XoteloHotels:
                 if old.get("offer"):
                     out[code] = old["offer"]
                 continue
+            if new >= self.max_new:  # ogranicz czas przebiegu; reszta w kolejnych przebiegach
+                self.stat["odłożone do następnego przebiegu"] = self.stat.get("odłożone do następnego przebiegu", 0) + 1
+                continue
+            new += 1
             loc = self._location_key(cen.get("name") or a.city, a.country, locs, cen)
             if not loc:
                 self.stat["bez identyfikatora miasta"] = self.stat.get("bez identyfikatora miasta", 0) + 1

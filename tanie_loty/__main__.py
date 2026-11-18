@@ -12,7 +12,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import enrich
+from . import enrich, hotels as hotels_mod
 from .combine import combine
 from .fx import Fx
 from .http import Http
@@ -151,6 +151,8 @@ def main(argv=None) -> int:
     dests = sorted({t[k] for lst in trips.values() for t in lst for k in ("dest", "back") if t.get(k)})
     extra: dict[str, dict] = {c: {} for c in dests}
     pli, pli_src, hist = {}, "-", None
+    hotel_offers: dict[str, dict] = {}
+    centres: dict = {}
     months = sorted({dt.date.fromisoformat(m + "-01") for m in
                      {t["out"]["date"][:7] for lst in trips.values() for t in lst}})
     enrich_notes = []
@@ -167,6 +169,15 @@ def main(argv=None) -> int:
                                     for i in range(16)}
         pli = dict(enrich.PLI_FALLBACK)
         pli_src = "demo"
+        for i, (c, tg) in enumerate(hotels_mod.hotel_targets(trips).items()):
+            if i % 2 == 0:
+                n = (dt.date.fromisoformat(tg["checkout"]) - dt.date.fromisoformat(tg["checkin"])).days
+                pn = rnd.randint(150, 320)
+                hotel_offers[c] = {"name": f"Hotel Demo {c}", "rating": round(rnd.uniform(7, 9.4), 1),
+                                   "reviews": rnd.randint(80, 2000), "stars": rnd.choice([2, 3, 3, 4]),
+                                   "km": round(rnd.uniform(0.3, 2.9), 1), "total": pn * n, "per_night": pn,
+                                   "room": "Pokój dwuosobowy z łazienką", "board": "Bez wyżywienia",
+                                   "nights": n, "adults": 2, **tg}
         hinfo = {enrich.fare_key(t[k]): {"n": 5, "since": start.isoformat(), "avg": t[k]["price"] + rnd.randint(-30, 40),
                                          "min": t[k]["price"] - rnd.randint(0, 20), "chg": rnd.choice([-40, -10, 0, 15, 30])}
                  for lst in trips.values() for t in lst for k in ("out", "ret") if k in t}
@@ -198,6 +209,19 @@ def main(argv=None) -> int:
         except Exception as e:
             log.exception("Błąd Eurostat")
             pli, pli_src = dict(enrich.PLI_FALLBACK), f"tabela zapasowa ({e})"
+        key = hotels_mod.get_key()
+        if key:
+            try:
+                lh = hotels_mod.LiteApiHotels(http, fx, key, cfg.get("hotels", {}))
+                hotel_offers = lh.fetch(hotels_mod.hotel_targets(trips), airports, centres, cache.data)
+                r = sorted(lh.ratings)
+                enrich_notes.append(f"noclegi LiteAPI: {len(hotel_offers)} ofert; {lh.sample}; "
+                                    f"oceny: {r[0] if r else '-'}–{r[-1] if r else '-'} (n={len(r)})")
+            except Exception as e:
+                log.exception("Błąd LiteAPI")
+                enrich_notes.append(f"noclegi LiteAPI: błąd {e}")
+        else:
+            enrich_notes.append("noclegi: brak klucza LITEAPI_KEY — tylko szacunek")
         try:
             hist, hinfo = enrich.update_history(http, cfg.get("pages_url"), fares)
         except Exception as e:
@@ -240,7 +264,9 @@ def main(argv=None) -> int:
     eur = 4.25 if args.demo else (fx.rates.get("EUR") or 4.25)
     payload = {"meta": meta, **trips, "airports": ap_out,
                "pli": {cc: pli[cc] for cc in sorted(used_cc) if cc in pli},
-               "cost": {k: v for k, v in cfg.get("cost", {}).items() if not k.startswith("_")}, "eur": eur}
+               "cost": {k: v for k, v in cfg.get("cost", {}).items() if not k.startswith("_")}, "eur": eur,
+               "hotels": hotel_offers, "hotel_criteria": {k: v for k, v in cfg.get("hotels", {}).items()
+                                                          if not k.startswith("_")}}
     (out / "results.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
                                       encoding="utf-8")
     shutil.copy(ROOT / "site" / "index.html", out / "index.html")

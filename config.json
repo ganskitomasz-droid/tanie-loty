@@ -7,8 +7,16 @@
   "max_total": 0,
   "providers": ["ryanair", "wizzair"],
   "pages_url": "https://ganskitomasz-droid.github.io/tanie-loty/",
+  "hotels": {
+    "_opis": "Kryteria prawdziwych ofert noclegu z LiteAPI (wymaga sekretu LITEAPI_KEY).",
+    "max_km": 3,
+    "min_rating": 7,
+    "adults": 2,
+    "refresh_hours": 24,
+    "max_destinations": 80
+  },
   "cost": {
     "_opis": "Szacunek ceny pokoju 2-os./noc przy średnim poziomie cen UE (wskaźnik 100); dla kraju przeliczany wskaźnikiem cen restauracji i hoteli Eurostatu.",
-    "hotel_room_eur": 85
+    "hotel_room_eur": 60
   }
 }

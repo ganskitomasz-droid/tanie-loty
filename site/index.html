@@ -183,10 +183,15 @@ function cost(t) {
   const nights = Math.max(1, Math.round((d(t.ret.date) - d(t.out.arr_date || t.out.date)) / 864e5));
   const cc = ap(t.dest).cc, pli = (DATA.pli || {})[cc] || 100, f = pli / 100 * (DATA.eur || 4.3);
   const { a } = pax(), n = seats(), rooms = Math.ceil(a / 2);
-  const room = DATA.cost.hotel_room_eur * f;                 // pokój / noc
+  const o = offerFor(t);
+  const real = o && o.per_night ? o.per_night / roomsFor(o.adults) : null; // prawdziwa cena pokoju/noc dla kierunku
+  const room = real || DATA.cost.hotel_room_eur * f;          // pokój / noc
   const lodging = rooms * room * nights / n;                  // nocleg na osobę
-  const total = Math.round(t.total + lodging);                // loty + nocleg na osobę
-  return { total, room: Math.round(room), lodging: Math.round(lodging), nights, pli, known: !!(DATA.pli || {})[cc] };
+  const exact = offerMatches(t, o) && o.adults === a && n === a;
+  const lodgingPP = exact ? o.total / n : lodging;
+  const total = Math.round(t.total + lodgingPP);              // loty + nocleg na osobę
+  return { total, room: Math.round(room), lodging: Math.round(lodgingPP), nights, pli, known: !!(DATA.pli || {})[cc],
+           real: !!real, exact };
 }
 
 // --- cena na tle średniej i historii --------------------------------------------------------
@@ -222,9 +227,8 @@ const sameTrip = t => t.ret && t.out.carrier === t.ret.carrier && t.out.from ===
 
 function times(l) {
   if (!l.time) return "";
-  if (!l.arr) return `, wylot ${esc(l.time)}`;
-  const next = l.arr_date ? ` <small>(${fmtDay(l.arr_date)})</small>` : "";
-  return `, <b>${esc(l.time)}</b> → <b>${esc(l.arr)}</b>${next}`;
+  if (!l.arr) return `, wylot <b>${esc(l.time)}</b> <small>(godz. lądowania — sprawdź u przewoźnika)</small>`;
+  return `, wylot <b>${esc(l.time)}</b> → lądowanie <b>${fmtDay(l.arr_date || l.date)}, ${esc(l.arr)}</b>`;
 }
 
 // Nocleg: link do Booking.com z kryteriami (≤3 km od centrum, bez hosteli, ocena 7+), od najtańszych.
@@ -235,29 +239,48 @@ function stay(t) {
   const nights = Math.round((d(checkout) - d(checkin)) / 86400000);
   if (nights < 1) return null;
   const a = ap(t.dest), { a: ad, k } = pax();
-  const nflt = ["distance=3000", "review_score=70", ...HT.map(h => "ht_id=" + h)].join(";");
+  const nflt = ["distance=3000", "review_score=70", "roomfacility=38", ...HT.map(h => "ht_id=" + h)].join(";"); // 38 = łazienka w pokoju
   const q = new URLSearchParams({ ss: [city(t.dest), a.country].filter(Boolean).join(", "), checkin, checkout,
     group_adults: ad, group_children: k, no_rooms: 1, order: "price", nflt, lang: "pl" });
   for (let i = 0; i < k; i++) q.append("age", 8);
   return { url: "https://www.booking.com/searchresults.pl.html?" + q, checkin, checkout, nights, city: city(t.dest) };
 }
 
+// Prawdziwa oferta z LiteAPI dla kierunku (najtańsza spełniająca kryteria), jeśli jest.
+const offerFor = t => (DATA.hotels || {})[t.dest] || null;
+const offerMatches = (t, o) => o && o.checkin === (t.out.arr_date || t.out.date) && o.checkout === (t.ret && t.ret.date);
+const roomsFor = n => Math.max(1, Math.ceil(n / 2));
+
 function hotelBox(t) {
   const h = stay(t);
   if (!h) return "";
+  const o = offerFor(t);
+  if (offerMatches(t, o)) {
+    const q = new URLSearchParams({ ss: `${o.name}, ${h.city}`, checkin: o.checkin, checkout: o.checkout,
+      group_adults: pax().a, group_children: pax().k, no_rooms: 1, lang: "pl" });
+    const stars = o.stars ? " · " + "★".repeat(Math.round(o.stars)) : "";
+    return `<div class="hotel"><b>Najtańszy nocleg: ${esc(o.name)}</b>
+      <span>ocena ${o.rating}/10${o.reviews ? ` (${o.reviews} opinii)` : ""}${stars} · ${o.km} km od centrum</span>
+      <span>${esc(o.room || "")}${o.board ? " · " + esc(o.board) : ""}</span>
+      <span><b>${o.total.toLocaleString("pl-PL")} zł</b> za ${o.nights} ${o.nights === 1 ? "noc" : o.nights < 5 ? "noce" : "nocy"}
+        (${o.per_night} zł/noc) · dla ${o.adults} dorosłych</span>
+      <div class="crit"><span>≤ 3 km</span><span>bez hosteli</span><span>7+</span><span>łazienka w pokoju</span></div>
+      <a class="btn" href="${esc("https://www.booking.com/searchresults.pl.html?" + q)}" target="_blank" rel="noopener">Znajdź ten obiekt ↗</a>
+      <a href="${esc(h.url)}" target="_blank" rel="noopener" style="text-align:center;font-size:12px;color:var(--accent)">albo porównaj na Booking.com ↗</a></div>`;
+  }
   const { a, k } = pax();
   const who = `${a} ${a === 1 ? "dorosły" : "dorosłych"}${k ? `, ${k} ${k === 1 ? "dziecko" : "dzieci"}` : ""}`;
   return `<div class="hotel"><b>Nocleg: ${esc(h.city)}</b>
     <span>${fmtDay(h.checkin)} → ${fmtDay(h.checkout)} · ${h.nights} ${h.nights === 1 ? "noc" : h.nights < 5 ? "noce" : "nocy"} · ${who}</span>
-    ${cost(t) ? `<span>Szacunek: pokój ok. ${cost(t).room} zł/noc</span>` : ""}
-    <div class="crit"><span>≤ 3 km od centrum</span><span>bez hosteli</span><span>ocena 7+</span><span>od najtańszych</span></div>
+    ${cost(t) ? `<span>${cost(t).real ? `Na podstawie oferty z ${fmtDay(o.checkin)}: pokój ok. ${cost(t).room} zł/noc` : `Szacunek: pokój ok. ${cost(t).room} zł/noc`}</span>` : ""}
+    <div class="crit"><span>≤ 3 km od centrum</span><span>bez hosteli</span><span>ocena 7+</span><span>łazienka w pokoju</span><span>od najtańszych</span></div>
     <a class="btn" href="${esc(h.url)}" target="_blank" rel="noopener">Najtańszy nocleg na Booking.com ↗</a></div>`;
 }
 
 function leg(l, label) {
   const cls = l.carrier === "Ryanair" ? "fr" : "wz";
   return `<div class="leg"><span class="chip ${cls}">${esc(l.carrier)}</span>
-    <span>${label} <b>${esc(l.from)}</b> → <b>${esc(l.to)}</b>, ${fmtDay(l.date)}${times(l)}</span>
+    <span>${label} <b>${esc(l.from)}</b> → <b>${esc(l.to)}</b>: ${fmtDay(l.date)}${times(l)}</span>
     <span class="lp">${l.price} zł/os.${l.orig ? " (" + esc(l.orig) + ")" : ""}</span>
     <a href="${esc(bookUrl(l))}" target="_blank" rel="noopener">Sprawdź ↗</a></div>`;
 }
@@ -274,7 +297,7 @@ function card(t) {
   if (w) badges.push(`<span class="badge">${w.html}</span>`);
   if (cen) badges.push(`<span class="badge" title="Odległość w linii prostej">✈ lotnisko ok. ${Math.round(cen.km)} km od centrum ${esc(cen.name)}</span>`);
   return `<div class="trip${hb ? "" : " noh"}">
-    <div class="price">${t.total * seats()}<small> zł</small>${seats() > 1 ? `<span class="pp">${t.total} zł/os. × ${seats()}</span>` : ""}${c ? `<span class="cost" title="Na osobę: loty ${t.total} zł (dokładnie) + nocleg ok. ${c.lodging} zł (${c.nights} ${c.nights === 1 ? "noc" : "nocy"}, pokój ok. ${c.room} zł/noc — szacunek z poziomu cen kraju ${c.pli}${c.known ? "" : ", brak danych — średnia UE"}; UE = 100).">Loty + nocleg ≈ ${c.total.toLocaleString("pl-PL")} zł<small>/os. (nocleg szacunkowo)</small></span>` : ""}</div>
+    <div class="price">${t.total * seats()}<small> zł</small>${seats() > 1 ? `<span class="pp">${t.total} zł/os. × ${seats()}</span>` : ""}${c ? `<span class="cost" title="Na osobę: loty ${t.total} zł + nocleg ${c.lodging} zł (${c.nights} ${c.nights === 1 ? "noc" : "nocy"}, pokój ok. ${c.room} zł/noc — ${c.exact ? "prawdziwa najtańsza oferta spełniająca kryteria" : c.real ? "na podstawie prawdziwej oferty w tym mieście z innego terminu" : `szacunek z poziomu cen kraju ${c.pli}${c.known ? "" : ", brak danych — średnia UE"}; UE = 100`}).">Loty + nocleg ${c.exact ? "=" : "≈"} ${c.total.toLocaleString("pl-PL")} zł<small>/os. ${c.exact ? "(prawdziwe ceny)" : c.real ? "(nocleg wg oferty z innego terminu)" : "(nocleg szacunkowo)"}</small></span>` : ""}</div>
     <div><div class="dest">${title}</div><div class="when">${when}${extra}</div>${badges.length ? `<div class="badges">${badges.join("")}</div>` : ""}</div>
     <div class="legs">${leg(t.out, "Wylot")}${t.ret ? leg(t.ret, "Powrót") : ""}
     ${sameTrip(t) ? `<div class="book"><a href="${esc(bookUrl(t.out, t.ret))}" target="_blank" rel="noopener">Sprawdź w obie strony w ${esc(t.out.carrier)} ↗</a></div>` : ""}</div>

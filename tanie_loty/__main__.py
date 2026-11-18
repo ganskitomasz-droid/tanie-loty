@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 from . import enrich, hotels as hotels_mod
+from .xotelo import XoteloHotels
 from .combine import combine
 from .fx import Fx
 from .http import Http
@@ -225,7 +226,20 @@ def main(argv=None) -> int:
                 log.exception("Błąd LiteAPI")
                 enrich_notes.append(f"noclegi LiteAPI: błąd {e}")
         else:
-            enrich_notes.append("noclegi: brak klucza LITEAPI_KEY — tylko szacunek")
+            try:
+                xh = XoteloHotels(Http(min_interval=0.6, timeout=40, retries=1), fx, cfg.get("hotels", {}))
+                hotel_offers = xh.fetch(hotels_mod.hotel_targets(trips), airports, centres, cache.data)
+                types = ", ".join(f"{k}={v}" for k, v in sorted(xh.types.items(), key=lambda x: -x[1])[:8])
+                enrich_notes.append(f"noclegi Xotelo: {len(hotel_offers)} ofert; ceny: {xh.rates_ok} ok, "
+                                    f"{xh.rates_empty} pustych; typy: {types}" +
+                                    (f"; błędy: {'; '.join(xh.notes)}" if xh.notes else ""))
+                for k, v in xh.http.stats.items():
+                    http.stats[k] += v
+                for k, v in xh.http.samples.items():
+                    http.samples.setdefault(k, v)
+            except Exception as e:
+                log.exception("Błąd Xotelo")
+                enrich_notes.append(f"noclegi Xotelo: błąd {e}")
         try:
             hist, hinfo = enrich.update_history(http, cfg.get("pages_url"), fares)
         except Exception as e:

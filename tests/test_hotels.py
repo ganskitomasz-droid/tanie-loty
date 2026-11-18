@@ -55,6 +55,8 @@ def test_hotel_targets_use_cheapest_trip_and_arrival_date():
 class FakeXHttp:
     def json(self, method, url, tag, **kw):
         p = kw.get("params", {})
+        if "wikidata" in url:
+            return {"results": {"bindings": [{"ta": {"value": "g187497"}, "pop": {"value": "1"}}]}}
         if url.endswith("/search"):
             return {"error": None, "result": {"list": [{"location_key": "g187497", "name": "Barcelona"}]}}
         if url.endswith("/list"):

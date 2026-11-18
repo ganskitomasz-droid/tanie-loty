@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 import math
+import re
 
 from .fx import Fx
 from .http import Http
@@ -43,11 +44,41 @@ class XoteloHotels:
             return None
         return data.get("result")
 
-    def _location_key(self, city: str, country: str, cache: dict) -> str | None:
+    def _wikidata_geo(self, centre: dict) -> str | None:
+        """Identyfikator miejsca TripAdvisora (gNNNN) z Wikidata (właściwość P3134) dla
+        najludniejszego obiektu w promieniu 10 km od centrum."""
+        q = f"""SELECT ?ta ?pop ?dist WHERE {{
+          SERVICE wikibase:around {{ ?item wdt:P625 ?loc .
+            bd:serviceParam wikibase:center "Point({centre['lon']} {centre['lat']})"^^geo:wktLiteral .
+            bd:serviceParam wikibase:radius "10" . bd:serviceParam wikibase:distance ?dist . }}
+          ?item wdt:P3134 ?ta . OPTIONAL {{ ?item wdt:P1082 ?pop }}
+        }} ORDER BY DESC(?pop) ASC(?dist) LIMIT 40"""
+        data = self.http.json("GET", "https://query.wikidata.org/sparql", "wikidata",
+                              params={"query": q, "format": "json"},
+                              headers={"Accept": "application/sparql-results+json",
+                                       "User-Agent": "tanie-loty/1.0 (github.com/ganskitomasz-droid/tanie-loty)"},
+                              timeout=60)
+        rows = ((data or {}).get("results") or {}).get("bindings") or []
+        # najpierw obiekty z populacją (miasta), potem najczęstszy identyfikator miejsca
+        counts: dict[str, int] = {}
+        for r in rows:
+            m = re.search(r"g(\d+)", r.get("ta", {}).get("value", ""))
+            if not m:
+                continue
+            g = "g" + m.group(1)
+            if "pop" in r:
+                return g
+            counts[g] = counts.get(g, 0) + 1
+        return max(counts, key=counts.get) if counts else None
+
+    def _location_key(self, city: str, country: str, cache: dict, centre: dict | None = None) -> str | None:
         k = f"{city}|{country}"
-        if k in cache:
+        if cache.get(k):
             return cache[k]
-        res = None
+        res = self._wikidata_geo(centre) if centre else None
+        if res:
+            cache[k] = res
+            return res
         for q in (f"{city} {country}".strip(), city):
             r = self._get("search", {"query": q, "location_type": "geo"})
             items = (r or {}).get("list") or []
@@ -138,7 +169,7 @@ class XoteloHotels:
                 if old.get("offer"):
                     out[code] = old["offer"]
                 continue
-            loc = self._location_key(cen.get("name") or a.city, a.country, locs)
+            loc = self._location_key(cen.get("name") or a.city, a.country, locs, cen)
             offer = self._cheapest(self._hotels(loc, cen, lists), t["checkin"], t["checkout"]) if loc else None
             if offer:
                 offer.update({"checkin": t["checkin"], "checkout": t["checkout"], "adults": self.adults,

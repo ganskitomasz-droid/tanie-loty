@@ -20,6 +20,9 @@ API = "https://data.xotelo.com/api"
 TAG = "xotelo"
 EXCLUDE_TYPES = ("hostel", "camp", "dorm")
 EXCLUDE_NAMES = ("hostel", "dorm", "capsule", "backpack")
+LUXURY = ("intercontinental", "hyatt", "hilton", "marriott", "sheraton", "radisson", "kempinski", "four seasons",
+          "ritz", "w hotel", "sofitel", "fairmont", "mandarin", "shangri", "waldorf", "conrad", "westin",
+          "le meridien", "jw ", "palace", "grand hotel", "luxury", "boutique", "spa & resort")
 
 
 class XoteloHotels:
@@ -143,8 +146,15 @@ class XoteloHotels:
     def _cheapest(self, hotels: list[dict], checkin: str, checkout: str) -> dict | None:
         nights = (dt.date.fromisoformat(checkout) - dt.date.fromisoformat(checkin)).days
         rooms = max(1, math.ceil(self.adults / 2))
-        # najpierw obiekty z najniższą typową ceną (jeśli znana), dalej w kolejności „best value”
-        cands = sorted(hotels, key=lambda h: (h["min"] is None, h["min"] or 0))[: self.candidates]
+        # Xotelo nie podaje cen na liście, więc kolejność sprawdzania: najpierw typy zwykle tańsze
+        # (pensjonaty, B&B, apartamenty, małe hotele), potem zwykłe hotele, na końcu sieci luksusowe.
+        def prio(h):
+            t, n = (h.get("type") or "").lower(), h["name"].lower()
+            lux = any(x in n for x in LUXURY)
+            cheap_type = any(x in t for x in ("guest", "bed and breakfast", "b&b", "condominium", "inn",
+                                              "small hotel", "limited service", "lodge", "apartment"))
+            return (lux, not cheap_type)
+        cands = sorted(hotels, key=prio)[: self.candidates]
         best = None
         for h in cands:
             r = self._get("rates", {"hotel_key": h["key"], "chk_in": checkin, "chk_out": checkout,
@@ -174,13 +184,13 @@ class XoteloHotels:
         return best
 
     def fetch(self, targets: dict[str, dict], airports: dict[str, Airport], centres: dict, cache: dict) -> dict:
-        for old in ("xotelo_locations", "xotelo_offers", "xotelo_offers2", "xotelo_offers3"):  # wpisy z wersji z płatną wyszukiwarką
+        for old in ("xotelo_locations", "xotelo_offers", "xotelo_offers2", "xotelo_offers3", "xotelo_offers4"):  # wpisy z wersji z płatną wyszukiwarką
             cache.pop(old, None)
         locs = cache.setdefault("xotelo_geo", {})
         for old in ("xotelo_lists", "xotelo_lists2"):  # starsze wersje list (sortowanie po odległości)
             cache.pop(old, None)
         lists = cache.setdefault("xotelo_lists3", {})
-        offers = cache.setdefault("xotelo_offers4", {})
+        offers = cache.setdefault("xotelo_offers5", {})
         now = dt.datetime.now(dt.timezone.utc)
         out = {}
         new = 0
@@ -188,7 +198,7 @@ class XoteloHotels:
             cen, a = centres.get(code), airports.get(code)
             if not cen or not a:
                 continue
-            k = f"{code}:{t['checkin']}:{t['checkout']}:{self.adults}"
+            k = f"{code}:{self.adults}"
             old = offers.get(k)
             if old and (now - dt.datetime.fromisoformat(old["fetched"])).total_seconds() < self.refresh * 3600:
                 if old.get("offer"):
@@ -214,6 +224,6 @@ class XoteloHotels:
                 out[code] = offer
             offers[k] = {"fetched": now.isoformat(timespec="minutes"), "offer": offer}
         today = dt.date.today().isoformat()
-        for k in [k for k, v in offers.items() if k.split(":")[1] < today]:
+        for k in [k for k, v in offers.items() if (v.get("offer") or {}).get("checkin", "9") < today]:
             del offers[k]
         return out

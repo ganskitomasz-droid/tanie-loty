@@ -12,10 +12,10 @@
     "max_km": 3,
     "min_rating": 7,
     "adults": 2,
-    "refresh_hours": 24,
+    "refresh_hours": 48,
     "max_destinations": 80,
-    "candidates": 15,
-    "max_new_per_run": 30
+    "candidates": 40,
+    "max_new_per_run": 12
   },
   "cost": {
     "_opis": "Szacunek ceny pokoju 2-os./noc przy średnim poziomie cen UE (wskaźnik 100); dla kraju przeliczany wskaźnikiem cen restauracji i hoteli Eurostatu.",

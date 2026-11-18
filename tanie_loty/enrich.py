@@ -12,6 +12,7 @@ import datetime as dt
 import json
 import logging
 import statistics
+import time
 from collections import defaultdict
 from pathlib import Path
 
@@ -53,6 +54,15 @@ class Cache:
 def _chunks(xs: list, n: int):
     for i in range(0, len(xs), n):
         yield xs[i:i + n]
+
+
+def _om_get(http: Http, url: str, params: dict, timeout: float = 60):
+    """Zapytanie do Open-Meteo; przy przekroczeniu limitu na minutę odczekuje i ponawia raz."""
+    data = http.json("GET", url, TAG, params=params, timeout=timeout)
+    if data is None and http.stats.get((TAG, 429)):
+        time.sleep(61)
+        data = http.json("GET", url, TAG, params=params, timeout=timeout)
+    return data
 
 
 def _as_list(data):
@@ -108,13 +118,13 @@ def climate(http: Http, points: dict[str, tuple[float, float]], months: list[dt.
             if e.year >= this_year:
                 e = min(e, dt.date.today() - dt.timedelta(days=7))
             for chunk in _chunks(todo, BATCH):
-                data = http.json("GET", "https://archive-api.open-meteo.com/v1/archive", TAG, params={
+                data = _om_get(http, "https://archive-api.open-meteo.com/v1/archive", params={
                     "latitude": ",".join(str(points[c][0]) for c in chunk),
                     "longitude": ",".join(str(points[c][1]) for c in chunk),
                     "start_date": s.isoformat(), "end_date": e.isoformat(),
                     "daily": "temperature_2m_max,temperature_2m_min,precipitation_sum,sunshine_duration",
                     "timezone": "auto",
-                }, timeout=60)
+                })
                 if not data:
                     continue
                 for code, loc in zip(chunk, _as_list(data)):
@@ -149,7 +159,7 @@ def forecast(http: Http, points: dict[str, tuple[float, float]]) -> dict:
     out: dict[str, dict] = {}
     codes = list(points)
     for chunk in _chunks(codes, BATCH):
-        data = http.json("GET", "https://api.open-meteo.com/v1/forecast", TAG, params={
+        data = _om_get(http, "https://api.open-meteo.com/v1/forecast", params={
             "latitude": ",".join(str(points[c][0]) for c in chunk),
             "longitude": ",".join(str(points[c][1]) for c in chunk),
             "daily": "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code",

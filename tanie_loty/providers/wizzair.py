@@ -42,6 +42,8 @@ class WizzAir:
         self.ok = 0
         self.failed = 0
         self.sample_keys = ""
+        self.conn_keys = ""
+        self.no_route = 0
         self.ptypes: Counter = Counter()
         # DEBUG_ROUTE=WAW-LCA:2026-12-15:2026-12-25 — surowe wpisy kalendarza dla jednej trasy
         dbg = os.environ.get("DEBUG_ROUTE", "")
@@ -87,7 +89,12 @@ class WizzAir:
             airports[code] = Airport(code, c.get("shortName", ""), c.get("shortName", ""),
                                      c.get("countryName", ""), c.get("latitude"), c.get("longitude"),
                                      (c.get("countryCode") or "").upper())
-            conns[code] = {x["iata"] for x in c.get("connections", []) if x.get("iata")}
+            cs = c.get("connections", [])
+            if cs and not self.conn_keys:
+                self.conn_keys = ",".join(sorted(cs[0].keys()))
+            conns[code] = {x["iata"] for x in cs if x.get("iata") and not (
+                x.get("isDirect") is False or x.get("via") or x.get("connectedVia") or x.get("viaStation")
+                or x.get("isConnectedFlight") or x.get("isConnection"))}
         return airports, conns
 
     def _parse(self, flights: list[dict], start: dt.date, end: dt.date) -> list[Fare]:
@@ -150,8 +157,17 @@ class WizzAir:
             }
             data = None
             for attempt in range(3):
-                data = self.http.json("POST", f"{self.api}/search/timetableV2", TAG,
+                r = self.http.request("POST", f"{self.api}/search/timetableV2", TAG,
                                       json=body, headers=self._hdrs())
+                if r is not None and r.status_code == 400:
+                    # trasa nie istnieje / nie jest sprzedawana (np. InvalidMarket) — to nie blokada
+                    self.no_route += 1
+                    return fares
+                if r is not None and r.ok:
+                    try:
+                        data = r.json()
+                    except ValueError:
+                        data = None
                 if data is not None:
                     break
                 # Prawdopodobnie limit zapytań: odczekaj i odnów sesję.
@@ -188,6 +204,7 @@ class WizzAir:
             self.shared.samples.setdefault(k, v)
         if self.stopped:
             res.notes.append(self.stopped)
+        res.notes.append(f"trasy bez sprzedaży: {self.no_route}; pola połączeń: {self.conn_keys}")
         res.notes.append("priceType: " + ", ".join(f"{k}={v}" for k, v in self.ptypes.most_common()))
         if self.debug_rows:
             res.notes.append("DEBUG " + " | ".join(sorted(self.debug_rows)))

@@ -35,6 +35,7 @@ class XoteloHotels:
         self.types: dict[str, int] = {}
         self.rates_ok = 0
         self.stat: dict[str, int] = {}
+        self.wd_samples: list[str] = []
         self.rates_empty = 0
 
     def _get(self, path: str, params: dict):
@@ -60,6 +61,20 @@ class XoteloHotels:
                                        "User-Agent": "tanie-loty/1.0 (github.com/ganskitomasz-droid/tanie-loty)"},
                               timeout=60)
         rows = ((data or {}).get("results") or {}).get("bindings") or []
+        if len(self.wd_samples) < 3:
+            self.wd_samples.append(f"{len(rows)}:{rows[0]['ta']['value'][:40] if rows else '-'}")
+        if not rows and centre.get("name"):
+            # zapas: wyszukanie miasta po nazwie (pl/en) z identyfikatorem TripAdvisora
+            name = centre["name"].replace('"', "")
+            q2 = f"""SELECT ?ta ?pop WHERE {{ VALUES ?lang {{ "pl" "en" }}
+              ?item rdfs:label ?l . FILTER(?l = STRLANG("{name}", ?lang))
+              ?item wdt:P3134 ?ta . OPTIONAL {{ ?item wdt:P1082 ?pop }} }} ORDER BY DESC(?pop) LIMIT 10"""
+            data = self.http.json("GET", "https://query.wikidata.org/sparql", "wikidata",
+                                  params={"query": q2, "format": "json"},
+                                  headers={"Accept": "application/sparql-results+json",
+                                           "User-Agent": "tanie-loty/1.0 (github.com/ganskitomasz-droid/tanie-loty)"},
+                                  timeout=60)
+            rows = ((data or {}).get("results") or {}).get("bindings") or []
         # najpierw obiekty z populacją (miasta), potem najczęstszy identyfikator miejsca
         counts: dict[str, int] = {}
         for r in rows:

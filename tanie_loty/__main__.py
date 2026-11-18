@@ -231,7 +231,7 @@ def main(argv=None) -> int:
                 hotel_offers = xh.fetch(hotels_mod.hotel_targets(trips), airports, centres, cache.data)
                 types = ", ".join(f"{k}={v}" for k, v in sorted(xh.types.items(), key=lambda x: -x[1])[:8])
                 enrich_notes.append(f"noclegi Xotelo: {len(hotel_offers)} ofert; ceny: {xh.rates_ok} ok, "
-                                    f"{xh.rates_empty} pustych; {xh.stat}; typy: {types}" +
+                                    f"{xh.rates_empty} pustych; {xh.stat}; wikidata: {xh.wd_samples}; typy: {types}" +
                                     (f"; błędy: {'; '.join(xh.notes)}" if xh.notes else ""))
                 for k, v in xh.http.stats.items():
                     http.stats[k] += v

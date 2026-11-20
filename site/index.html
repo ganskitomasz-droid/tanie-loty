@@ -127,7 +127,7 @@
       <option value="Wizz Air">tylko Wizz Air</option><option value="mix" class="rt-only">mieszane linie</option>
     </select></label>
     <label>Kierunek / kraj<input id="f-q" type="search" placeholder="np. Hiszpania, BCN"></label>
-    <label>Sortuj<select id="f-sort"><option value="price">od najtańszych lotów</option>
+    <label>Sortuj<select id="f-sort"><option value="price">od najtańszych (loty + dojazd do lotniska)</option>
       <option value="cost" class="rt-only">wg kosztu loty + nocleg + dojazd</option>
       <option value="deal">największa okazja (vs średnia)</option><option value="date">wg daty</option></select></label>
     <label>Temp. w dzień<select id="f-temp"><option value="">dowolna</option><option value="15">min. 15°C</option>
@@ -197,7 +197,7 @@ function cost(t) {
   const transfer = tr != null && tb != null ? Math.round(tr + tb) : null;   // przylot → centrum i centrum → lotnisko powrotu
   const exact = offerMatches(t, o) && o.adults === a && n === a;
   const lodgingPP = exact ? o.total / n : lodging;
-  const access = (DATA.meta.config.group || {}).access_pln || 0;   // dojazd z domu do lotniska startowego
+  const access = grpOf(t).access_pln || 0;   // dojazd z domu do lotniska startowego
   const total = Math.round(t.total + lodgingPP + (transfer || 0) + access); // loty + nocleg + dojazdy na osobę
   return { total, room: Math.round(room), lodging: Math.round(lodgingPP), nights, pli, known: !!(DATA.pli || {})[cc],
            real: !!real, exact, transfer, access, ppn: Math.round(lodgingPP / nights) };
@@ -318,8 +318,8 @@ function card(t) {
   const badges = [...priceBadges(t)];
   if (w) badges.push(`<span class="badge">${w.html}</span>`);
   if (cen) badges.push(`<span class="badge" title="Odległość w linii prostej">✈ lotnisko ok. ${Math.round(cen.km)} km od centrum ${esc(cen.name)}</span>`);
-  const grp = DATA.meta.config.group || {};
-  const cmp = COMPARE && COMPARE.dests[t.dest];
+  const grp = grpOf(t);
+  const cmp = !MERGED && COMPARE && COMPARE.dests[t.dest];
   if (cmp && t.type === "rt" && grp.code) {
     const others = Object.keys(cmp).filter(k => k !== grp.code);
     if (!others.length) badges.push(`<span class="badge good">tylko z: ${esc(grp.name)}</span>`);
@@ -328,11 +328,12 @@ function card(t) {
       if (theirs + 20 < mine) badges.push(`<span class="badge bad" title="Najtańszy wyjazd na ten kierunek, łącznie z dojazdem do lotniska">z: ${esc(g2.name)} od ${theirs} zł/os. (z dojazdem)</span>`);
     }
   }
-  if (grp.access_pln) badges.push(`<span class="badge" title="${esc(grp.access_note)}">🚆 dojazd do ${esc(grp.name)}: ok. ${grp.access_pln} zł/os. tam i z powrotem</span>`);
+  if (MERGED) badges.unshift(`<span class="badge ${grp.access_pln ? "bad" : ""}" style="font-weight:600">✈ wylot: ${esc(grp.name)}${grp.access_pln ? ` · +${grp.access_pln} zł/os. dojazd z Warszawy (tam i z powrotem)` : ""}</span>`);
+  else if (grp.access_pln) badges.push(`<span class="badge" title="${esc(grp.access_note)}">🚆 dojazd do ${esc(grp.name)}: ok. ${grp.access_pln} zł/os. tam i z powrotem</span>`);
   if (transitBadge(t.dest)) badges.push(transitBadge(t.dest));
   if (t.back && t.back !== t.dest && transitBadge(t.back)) badges.push(transitBadge(t.back));
   return `<div class="trip${hb ? "" : " noh"}">
-    <div class="price">${t.total * seats()}<small> zł</small>${seats() > 1 ? `<span class="pp">${t.total} zł/os. × ${seats()}</span>` : ""}${c ? `<span class="cost" title="Na osobę: loty ${t.total} zł + nocleg ${c.lodging} zł (${c.nights} ${c.nights === 1 ? "noc" : "nocy"}, ok. ${c.ppn} zł/os./noc, pokój ok. ${c.room} zł/noc — ${c.exact ? "prawdziwa najtańsza oferta spełniająca kryteria" : c.real ? "na podstawie prawdziwej oferty w tym mieście z innego terminu" : `szacunek z poziomu cen kraju ${c.pli}${c.known ? "" : ", brak danych — średnia UE"}; UE = 100`})${c.transfer != null ? ` + dojazd lotnisko↔centrum ${c.transfer} zł (komunikacja publiczna, tam i z powrotem)` : ""}${c.access ? ` + dojazd do lotniska startowego ${c.access} zł (${DATA.meta.config.group.access_note})` : ""}.">Loty + nocleg${c.transfer != null ? " + dojazd" : ""} ${c.exact ? "=" : "≈"} ${c.total.toLocaleString("pl-PL")} zł<small>/os. ${c.exact ? "(prawdziwe ceny)" : c.real ? "(nocleg wg oferty z innego terminu)" : "(nocleg szacunkowo)"}</small></span>` : ""}</div>
+    <div class="price">${t.total * seats()}<small> zł</small>${seats() > 1 ? `<span class="pp">${t.total} zł/os. × ${seats()}</span>` : ""}${c ? `<span class="cost" title="Na osobę: loty ${t.total} zł + nocleg ${c.lodging} zł (${c.nights} ${c.nights === 1 ? "noc" : "nocy"}, ok. ${c.ppn} zł/os./noc, pokój ok. ${c.room} zł/noc — ${c.exact ? "prawdziwa najtańsza oferta spełniająca kryteria" : c.real ? "na podstawie prawdziwej oferty w tym mieście z innego terminu" : `szacunek z poziomu cen kraju ${c.pli}${c.known ? "" : ", brak danych — średnia UE"}; UE = 100`})${c.transfer != null ? ` + dojazd lotnisko↔centrum ${c.transfer} zł (komunikacja publiczna, tam i z powrotem)` : ""}${c.access ? ` + dojazd do lotniska startowego ${c.access} zł (${grpOf(t).access_note})` : ""}.">Loty + nocleg${c.transfer != null ? " + dojazd" : ""} ${c.exact ? "=" : "≈"} ${c.total.toLocaleString("pl-PL")} zł<small>/os. ${c.exact ? "(prawdziwe ceny)" : c.real ? "(nocleg wg oferty z innego terminu)" : "(nocleg szacunkowo)"}</small></span>` : ""}</div>
     <div><div class="dest">${title}</div><div class="when">${when}${extra}</div>${badges.length ? `<div class="badges">${badges.join("")}</div>` : ""}</div>
     <div class="legs">${leg(t.out, "Wylot")}${t.ret ? leg(t.ret, "Powrót") : ""}
     ${sameTrip(t) ? `<div class="book"><a href="${esc(bookUrl(t.out, t.ret))}" target="_blank" rel="noopener">Sprawdź w obie strony w ${esc(t.out.carrier)} ↗</a></div>` : ""}</div>
@@ -347,7 +348,7 @@ function filtered() {
   const q = $("#f-q").value.trim().toLowerCase(), wk = $("#f-weekend").checked, one = $("#f-one").checked;
   const tmin = +$("#f-temp").value || null, deal = $("#f-deal").checked;
   let rows = DATA[tab].filter(t => {
-    if (t.total > max) return false;
+    if (eff(t) > max) return false;
     // filtr nocy działa zawsze — przy elastycznych datach wyznacza długość pobytu
     if (t.ret && (t.nights < nmin || t.nights > nmax)) return false;
     if (dOut && !near(t.out.date, dOut)) return false;
@@ -374,14 +375,18 @@ function filtered() {
     const cache = new Map(rows.map(t => [t, (cost(t) || { total: Infinity }).total]));
     rows.sort((a, b) => cache.get(a) - cache.get(b));
   } else if (sort === "deal") rows.sort((a, b) => (a.vs ?? 0) - (b.vs ?? 0) || a.total - b.total);
-  else if (sort === "date") rows.sort((a, b) => a.out.date.localeCompare(b.out.date) || a.total - b.total);
-  else rows.sort((a, b) => a.total - b.total || a.out.date.localeCompare(b.out.date));
+  else if (sort === "date") rows.sort((a, b) => a.out.date.localeCompare(b.out.date) || eff(a) - eff(b));
+  else rows.sort((a, b) => eff(a) - eff(b) || a.out.date.localeCompare(b.out.date));
   if (one) {
     const seen = new Set();
     rows = rows.filter(t => { const k = t.dest + "|" + (t.back || ""); if (seen.has(k)) return false; seen.add(k); return true; });
   }
   return rows;
 }
+
+// Grupa (miasto wylotu) danego wyjazdu i cena porównawcza: loty + dojazd do lotniska startowego
+const grpOf = t => t.grp || DATA.meta.config.group || {};
+const eff = t => t.total + (grpOf(t).access_pln || 0);
 
 // Zwraca datę tylko, jeśli mieści się w przeszukanym okresie; inaczej pokazuje ostrzeżenie.
 let warnings = [];
@@ -429,7 +434,8 @@ function render() {
 
 // Rozpakowanie formatu zwartego (format 2): [wylot, powrót, kierunek, powrót z, noce, suma, vs, km]
 function unpack(data) {
-  if (data.format !== 2) return data;
+  if (data.format !== 2 || data._unpacked) return data;
+  data._unpacked = true;
   const L = data.legs;
   for (const [kind, type] of [["rt", "rt"], ["oj", "oj"], ["ow", "ow"]]) {
     data[kind] = data[kind].map(r => {
@@ -490,19 +496,48 @@ $("#more").onclick = () => { shown += 60; render(); };
 
 let COMPARE = null;
 fetch("compare.json", { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(c => { COMPARE = c; if (DATA) render(); }).catch(() => {});
-// Miasto wylotu: ?z=KRK w adresie (domyślnie Warszawa)
-const GROUP = (new URLSearchParams(location.search).get("z") || "").toUpperCase();
-function cityLinks(cfg) {
+// Miasto wylotu: ?z=WAW / ?z=KRK; bez parametru — widok „Razem” (wszystkie miasta na jednej liście)
+const GROUP = (new URLSearchParams(location.search).get("z") || "ALL").toUpperCase();
+let MERGED = false;
+const getJSON = url => fetch(url, { cache: "no-store" }).then(r => { if (!r.ok) throw new Error(url); return r.json(); });
+
+function cityLinks(cfg, cur) {
   const groups = Object.entries(cfg.groups || {}).filter(([k]) => !k.startsWith("_"));
-  const cur = (cfg.group || {}).code;
-  $("#title").textContent = `Tanie loty z: ${(cfg.group || {}).name || "Warszawa"}`;
-  $("#cities").innerHTML = groups.map(([k, g]) =>
-    `<a href="?z=${k}" class="${k === cur ? "on" : ""}">✈ ${esc(g.name)}${g.access_pln ? ` <small>(+${g.access_pln} zł dojazd)</small>` : ""}</a>`).join("");
+  const names = groups.map(([, g]) => g.name);
+  $("#title").textContent = cur === "ALL" ? `Tanie loty z: ${names.join(" + ")}` : `Tanie loty z: ${(cfg.groups[cur] || {}).name || cur}`;
+  $("#cities").innerHTML = [`<a href="./" class="${cur === "ALL" ? "on" : ""}">✈ Razem</a>`].concat(groups.map(([k, g]) =>
+    `<a href="?z=${k}" class="${k === cur ? "on" : ""}">${esc(g.name)}${g.access_pln ? ` <small>(+${g.access_pln} zł dojazd)</small>` : ""}</a>`)).join("");
 }
-fetch(GROUP ? `results-${GROUP}.json` : "results.json", { cache: "no-store" })
-  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
-  .then(d => { cityLinks(d.meta.config); init(d); })
-  .catch(() => { $("#sub").textContent = GROUP ? `Brak wyników dla ${GROUP} — pierwsze wyszukiwanie może jeszcze trwać.` : "Nie udało się wczytać wyników."; });
+
+// Łączy wyniki kilku miast: każdy wyjazd dostaje swoje miasto wylotu (t.grp).
+function merge(list) {
+  const base = list[0];
+  for (const d of list) {
+    const g = d.meta.config.group || {};
+    for (const k of ["rt", "oj", "ow"]) d[k].forEach(t => t.grp = g);
+  }
+  const out = { ...base, meta: { ...base.meta, config: { ...base.meta.config } } };
+  for (const k of ["rt", "oj", "ow"]) out[k] = list.flatMap(d => d[k]);
+  out.airports = Object.assign({}, ...list.map(d => d.airports));
+  out.hotels = Object.assign({}, ...list.map(d => d.hotels || {}));
+  out.pli = Object.assign({}, ...list.map(d => d.pli || {}));
+  out.meta.config.origins = [...new Set(list.flatMap(d => d.meta.config.origins))];
+  out.meta.providers = list.flatMap(d => d.meta.providers.map(p => ({ ...p, name: `${(d.meta.config.group || {}).code || ""} ${p.name}` })));
+  out.meta.enrich = list.flatMap(d => d.meta.enrich || []);
+  delete out.meta.config.group;
+  return out;
+}
+
+getJSON("results.json").then(async d0 => {
+  const cfg = d0.meta.config, groups = Object.keys(cfg.groups || {}).filter(k => !k.startsWith("_"));
+  const def = cfg.default_group || "WAW";
+  cityLinks(cfg, groups.includes(GROUP) ? GROUP : "ALL");
+  if (groups.includes(GROUP)) return init(GROUP === def ? d0 : await getJSON(`results-${GROUP}.json`));
+  const others = await Promise.all(groups.filter(k => k !== def).map(k => getJSON(`results-${k}.json`).catch(() => null)));
+  const list = [unpack(d0), ...others.filter(Boolean).map(unpack)];
+  MERGED = list.length > 1;
+  init(MERGED ? merge(list) : list[0]);
+}).catch(() => { $("#sub").textContent = "Nie udało się wczytać wyników — wyszukiwanie może jeszcze trwać."; });
 </script>
 </body>
 </html>

@@ -40,7 +40,7 @@ def load_config(args) -> dict:
     if g:
         cfg["origins"] = g["origins"]
         cfg["group"] = {"code": group, "name": g.get("name", group), "access_pln": g.get("access_pln", 0),
-                        "access_note": g.get("access_note", ""), "hotels": g.get("hotels", True)}
+                        "access_note": g.get("access_note", "")}
     else:
         cfg["group"] = {"code": group, "name": group, "access_pln": 0, "access_note": ""}
     for key in ("origins", "months", "nights_min", "nights_max", "openjaw_km", "max_total", "providers"):
@@ -223,9 +223,7 @@ def main(argv=None) -> int:
             log.exception("Błąd Eurostat")
             pli, pli_src = dict(enrich.PLI_FALLBACK), f"tabela zapasowa ({e})"
         key = hotels_mod.get_key()
-        if not cfg["group"].get("hotels", True):
-            enrich_notes.append("noclegi: wyłączone dla tego miasta wylotu")
-        elif key:
+        if key:
             try:
                 lh = hotels_mod.LiteApiHotels(http, fx, key, cfg.get("hotels", {}))
                 hotel_offers = lh.fetch(hotels_mod.hotel_targets(trips), airports, centres, cache.data)

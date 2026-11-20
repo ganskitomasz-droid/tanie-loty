@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        group: [WAW, KRK, KTW, WRO, GDN, POZ]   # miejsca wylotu z config.json → groups
+        group: [WAW, KRK]   # miejsca wylotu z config.json → groups
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

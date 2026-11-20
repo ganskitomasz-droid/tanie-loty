@@ -61,6 +61,9 @@ def main(path: str) -> int:
             dist = 0 if r["from"] == o["to"] else km(airports.get(o["to"]), airports.get(r["from"]))
             if dist > oj_km:
                 continue
+            if dist and q.get("openjaw_same_country") and \
+                    (airports.get(o["to"]) or {}).get("cc") != (airports.get(r["from"]) or {}).get("cc"):
+                continue
             n = (d(r["date"]) - d(o.get("arr_date") or o["date"])).days
             if q["nights"][0] <= n <= q["nights"][1]:
                 res.append((o["price"] + r["price"], n, o, r, round(dist)))

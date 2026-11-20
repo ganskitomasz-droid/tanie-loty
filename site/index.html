@@ -504,8 +504,9 @@ const getJSON = url => fetch(url, { cache: "no-store" }).then(r => { if (!r.ok) 
 function cityLinks(cfg, cur) {
   const groups = Object.entries(cfg.groups || {}).filter(([k]) => !k.startsWith("_"));
   const names = groups.map(([, g]) => g.name);
-  $("#title").textContent = cur === "ALL" ? `Tanie loty z: ${names.join(" + ")}` : `Tanie loty z: ${(cfg.groups[cur] || {}).name || cur}`;
-  $("#cities").innerHTML = [`<a href="./" class="${cur === "ALL" ? "on" : ""}">✈ Razem</a>`].concat(groups.map(([k, g]) =>
+  const allNames = groups.filter(([, g]) => g.in_all !== false).map(([, g]) => g.name);
+  $("#title").textContent = cur === "ALL" ? `Tanie loty z: ${allNames.join(" + ")}` : `Tanie loty z: ${(cfg.groups[cur] || {}).name || cur}`;
+  $("#cities").innerHTML = [`<a href="./" class="${cur === "ALL" ? "on" : ""}">✈ Razem (${allNames.join(" + ")})</a>`].concat(groups.map(([k, g]) =>
     `<a href="?z=${k}" class="${k === cur ? "on" : ""}">${esc(g.name)}${g.access_pln ? ` <small>(+${g.access_pln} zł dojazd)</small>` : ""}</a>`)).join("");
 }
 
@@ -533,7 +534,8 @@ getJSON("results.json").then(async d0 => {
   const def = cfg.default_group || "WAW";
   cityLinks(cfg, groups.includes(GROUP) ? GROUP : "ALL");
   if (groups.includes(GROUP)) return init(GROUP === def ? d0 : await getJSON(`results-${GROUP}.json`));
-  const others = await Promise.all(groups.filter(k => k !== def).map(k => getJSON(`results-${k}.json`).catch(() => null)));
+  const inAll = groups.filter(k => k !== def && cfg.groups[k].in_all !== false);
+  const others = await Promise.all(inAll.map(k => getJSON(`results-${k}.json`).catch(() => null)));
   const list = [unpack(d0), ...others.filter(Boolean).map(unpack)];
   MERGED = list.length > 1;
   init(MERGED ? merge(list) : list[0]);

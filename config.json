@@ -28,7 +28,7 @@
     "hotel_room_eur": 60
   },
   "groups": {
-    "_opis": "Miejsca wylotu wyszukiwane osobno i pokazywane razem na stronie.",
+    "_opis": "Miejsca wylotu wyszukiwane osobno. in_all=false: nie wchodzi do widoku „Razem” (osobny przycisk). hotels=false: bez pobierania ofert noclegów (oszczędza czas).",
     "WAW": {
       "name": "Warszawa",
       "origins": [
@@ -45,6 +45,46 @@
       ],
       "access_pln": 0,
       "access_note": ""
+    },
+    "KTW": {
+      "name": "Katowice",
+      "origins": [
+        "KTW"
+      ],
+      "access_pln": 0,
+      "access_note": "",
+      "in_all": false,
+      "hotels": false
+    },
+    "WRO": {
+      "name": "Wrocław",
+      "origins": [
+        "WRO"
+      ],
+      "access_pln": 0,
+      "access_note": "",
+      "in_all": false,
+      "hotels": false
+    },
+    "GDN": {
+      "name": "Gdańsk",
+      "origins": [
+        "GDN"
+      ],
+      "access_pln": 0,
+      "access_note": "",
+      "in_all": false,
+      "hotels": false
+    },
+    "POZ": {
+      "name": "Poznań",
+      "origins": [
+        "POZ"
+      ],
+      "access_pln": 0,
+      "access_note": "",
+      "in_all": false,
+      "hotels": false
     }
   },
   "default_group": "WAW"

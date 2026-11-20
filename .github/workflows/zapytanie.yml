@@ -1,0 +1,21 @@
+name: Zapytanie
+on:
+  push:
+    branches: [main]
+    paths: ["zapytania/**"]
+jobs:
+  query:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Zapytanie (zmienione pliki)
+        run: |
+          for f in $(git diff --name-only HEAD~1 HEAD -- zapytania/ | grep '\.json$'); do
+            [ -f "$f" ] && python -m tanie_loty.query "$f"
+          done

@@ -1,0 +1,17 @@
+{
+  "_opis": "Siatka Ryanair/Wizz z Warszawy: grudzień 2026 vs styczeń 2027 — zmiany częstotliwości (≥3 dni z lotami różnicy)",
+  "analysis": "routes",
+  "pages_url": "https://ganskitomasz-droid.github.io/tanie-loty/",
+  "groups": [
+    "WAW"
+  ],
+  "origins": [
+    "WAW",
+    "WMI"
+  ],
+  "months": [
+    "2026-12",
+    "2027-01"
+  ],
+  "min_diff_days": 3
+}

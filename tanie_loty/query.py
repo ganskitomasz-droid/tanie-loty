@@ -53,12 +53,13 @@ def routes(q: dict) -> int:
             new.append(f"{label}: od {first}, {b} dni z lotami w {m2}")
         elif a and not b:
             gone.append(f"{label}: ostatni {max(by[m1])}, {a} dni w {m1}")
-        elif a and b >= 2 * a + 4:
-            more.append(f"{label}: {a} → {b} dni z lotami")
+        elif a and b and abs(b - a) >= q.get("min_diff_days", 3):
+            more.append((b - a, f"{label}: {a} → {b} dni z lotami ({'+' if b > a else ''}{b - a})"))
     # trasy w obie strony nieobecne w jednym miesiącu u żadnego przewoźnika (z dowolnego lotniska grupy)
     lines = [f"NOWE w {m2} (brak lotów w {m1}): {len(new)}"] + new + \
             [f"ZNIKAJĄ w {m2} (były w {m1}): {len(gone)}"] + gone + \
-            [f"WIĘCEJ LOTÓW w {m2}: {len(more)}"] + more
+            [f"ZMIANA CZĘSTOTLIWOŚCI (dni z lotami w miesiącu): {len(more)}"] + \
+            [t for _, t in sorted(more, key=lambda x: -x[0])]
     print("\n".join(lines))
     if os.environ.get("GITHUB_ACTIONS"):
         chunk = []

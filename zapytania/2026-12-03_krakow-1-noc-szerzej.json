@@ -1,0 +1,103 @@
+{
+  "_opis": "Grudzień 3–7: 1 noc z Krakowa — szerzej: wszystkie kraje poza wykluczonymi, powrót do WAW/WMI lub KRK, dowolne godziny",
+  "pages_url": "https://ganskitomasz-droid.github.io/tanie-loty/",
+  "groups": [
+    "WAW",
+    "KRK"
+  ],
+  "out_from": [
+    "KRK"
+  ],
+  "out_dates": [
+    "2026-12-03",
+    "2026-12-06"
+  ],
+  "out_latest": "23:59",
+  "ret_to_any": [
+    "WAW",
+    "WMI"
+  ],
+  "ret_to_extra": {
+    "KRK": [
+      "KRK"
+    ]
+  },
+  "ret_latest_date": "2026-12-07",
+  "ret_earliest": "00:00",
+  "nights": [
+    1,
+    1
+  ],
+  "openjaw_km": 0,
+  "countries": [
+    "ES",
+    "PT",
+    "IT",
+    "GR",
+    "HR",
+    "ME",
+    "AL",
+    "MK",
+    "BG",
+    "RS",
+    "BA",
+    "SI",
+    "TR",
+    "AT",
+    "HU",
+    "CZ",
+    "DE",
+    "NL",
+    "BE",
+    "CH",
+    "LU",
+    "IE",
+    "RO",
+    "MD",
+    "GE",
+    "AM",
+    "MA",
+    "IL",
+    "JO",
+    "AE",
+    "EG",
+    "LT",
+    "LV",
+    "EE",
+    "UA",
+    "AZ",
+    "TN",
+    "PL"
+  ],
+  "exclude_airports": [
+    "BGY",
+    "MXP",
+    "LIN",
+    "VCE",
+    "TSF",
+    "TRN",
+    "GOA",
+    "BLQ",
+    "VRN",
+    "TRS",
+    "CUF",
+    "BZO",
+    "VBS",
+    "NAP",
+    "FCO",
+    "CIA",
+    "CTA",
+    "MLA",
+    "LCA",
+    "PFO",
+    "ECN",
+    "PMI",
+    "SOF",
+    "DBV",
+    "PSR",
+    "ZAG"
+  ],
+  "per_dest": 2,
+  "limit": 70,
+  "openjaw_same_country": true
+}

@@ -1,0 +1,77 @@
+{
+  "_opis": "Porównanie: styczeń 2027 (po świętach, 8.01–1.02), 2–3 noce, jedno miasto, wylot WAW/WMI/KRK do 16:00, powrót do Warszawy od 8:00",
+  "pages_url": "https://ganskitomasz-droid.github.io/tanie-loty/",
+  "groups": [
+    "WAW",
+    "KRK"
+  ],
+  "out_from": [
+    "WAW",
+    "WMI",
+    "KRK"
+  ],
+  "out_dates": [
+    "2027-01-08",
+    "2027-01-29"
+  ],
+  "out_latest": "16:00",
+  "ret_to_any": [
+    "WAW",
+    "WMI"
+  ],
+  "ret_to_extra": {},
+  "ret_latest_date": "2027-02-01",
+  "ret_earliest": "08:00",
+  "nights": [
+    2,
+    3
+  ],
+  "openjaw_km": 0,
+  "countries": [
+    "ES",
+    "PT",
+    "IT",
+    "GR",
+    "HR",
+    "ME",
+    "AL",
+    "MK",
+    "BG",
+    "RS",
+    "BA",
+    "SI",
+    "TR"
+  ],
+  "exclude_airports": [
+    "BGY",
+    "MXP",
+    "LIN",
+    "VCE",
+    "TSF",
+    "TRN",
+    "GOA",
+    "BLQ",
+    "VRN",
+    "TRS",
+    "CUF",
+    "BZO",
+    "VBS",
+    "NAP",
+    "FCO",
+    "CIA",
+    "CTA",
+    "MLA",
+    "LCA",
+    "PFO",
+    "ECN",
+    "PMI",
+    "SOF",
+    "DBV",
+    "PSR",
+    "ZAG"
+  ],
+  "per_dest": 1,
+  "limit": 30,
+  "openjaw_same_country": true,
+  "ret_earliest_date": "2027-01-10"
+}

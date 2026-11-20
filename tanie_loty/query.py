@@ -11,7 +11,13 @@ import json
 import os
 import sys
 import math
+import re
 import urllib.request
+
+
+def clean(t: str) -> str:
+    """Usuwa znaki sterujące i separatory linii, które ucinają adnotacje GitHub Actions."""
+    return re.sub(r"[\x00-\x1f\x7f\u2028\u2029\u0085]", " ", str(t))
 
 d = dt.date.fromisoformat
 
@@ -43,7 +49,7 @@ def routes(q: dict) -> int:
         if l["from"] in q["origins"]:
             k = (l["carrier"], l["from"], l["to"])
             days.setdefault(k, {}).setdefault(l["date"][:7], set()).add(l["date"])
-    city = lambda c: (airports.get(c) or {}).get("city") or c
+    city = lambda c: clean((airports.get(c) or {}).get("city") or c)
     new, gone, more = [], [], []
     for (car, o, dst), by in sorted(days.items()):
         a, b = len(by.get(m1, ())), len(by.get(m2, ()))
@@ -124,9 +130,9 @@ def main(path: str) -> int:
     for total, n, o, r, dist in out[: q.get("limit", 40)]:
         a = airports.get(o["to"]) or {}
         b = airports.get(r["from"]) or {}
-        place = f"{a.get('city') or o['to']} ({o['to']}, {a.get('country','')})"
+        place = clean(f"{a.get('city') or o['to']} ({o['to']}, {a.get('country','')})")
         if dist:
-            place += f" → powrót z {b.get('city') or r['from']} ({r['from']}), {dist} km"
+            place += clean(f" → powrót z {b.get('city') or r['from']} ({r['from']}), {dist} km")
         lines.append(f"{total} zł | {place} | {n} n. | "
                      f"{o['carrier']} {o['from']}→{o['to']} {o['date']} {o.get('time') or '?'}→{o.get('arr') or '?'} {o['price']} zł | "
                      f"{r['carrier']} {r['from']}→{r['to']} {r['date']} {r.get('time') or '?'}→{r.get('arr') or '?'} {r['price']} zł")

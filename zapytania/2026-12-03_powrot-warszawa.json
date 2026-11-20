@@ -1,0 +1,18 @@
+{
+  "_opis": "Wypad 3–7 grudnia 2026, 2–3 noce, wylot do 16:00 z WAW/WMI/KRK, powrót tylko do Warszawy (WAW/WMI) od 8:00, także open-jaw do 500 km",
+  "pages_url": "https://ganskitomasz-droid.github.io/tanie-loty/",
+  "groups": ["WAW", "KRK"],
+  "out_from": ["WAW", "WMI", "KRK"],
+  "out_dates": ["2026-12-03", "2026-12-05"],
+  "out_latest": "16:00",
+  "ret_to_any": ["WAW", "WMI"],
+  "ret_to_extra": {},
+  "ret_latest_date": "2026-12-07",
+  "ret_earliest": "08:00",
+  "nights": [2, 3],
+  "openjaw_km": 500,
+  "countries": ["ES", "PT", "IT", "GR", "CY", "MT", "HR", "ME", "AL", "MK", "BG", "RS", "BA", "SI", "TR"],
+  "exclude_airports": ["BGY", "MXP", "LIN", "VCE", "TSF", "TRN", "GOA", "BLQ", "VRN", "TRS", "CUF", "BZO", "VBS"],
+  "per_dest": 1,
+  "limit": 60
+}

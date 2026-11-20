@@ -49,7 +49,7 @@ def main(path: str) -> int:
     outs = [l for l in legs if l["from"] in q["out_from"] and q["out_dates"][0] <= l["date"] <= q["out_dates"][1]
             and (l.get("time") or "99") <= q["out_latest"] and country_ok(l["to"])]
     rets = [l for l in legs if l["to"] in q["ret_to_any"] + sum(q.get("ret_to_extra", {}).values(), [])
-            and l["date"] <= q["ret_latest_date"] and (l.get("time") or "00") >= q["ret_earliest"]
+            and q.get("ret_earliest_date", "0000") <= l["date"] <= q["ret_latest_date"] and (l.get("time") or "00") >= q["ret_earliest"]
             and country_ok(l["from"])]
     oj_km = q.get("openjaw_km", 0)
     res = []

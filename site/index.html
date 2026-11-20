@@ -319,6 +319,15 @@ function card(t) {
   if (w) badges.push(`<span class="badge">${w.html}</span>`);
   if (cen) badges.push(`<span class="badge" title="Odległość w linii prostej">✈ lotnisko ok. ${Math.round(cen.km)} km od centrum ${esc(cen.name)}</span>`);
   const grp = DATA.meta.config.group || {};
+  const cmp = COMPARE && COMPARE.dests[t.dest];
+  if (cmp && t.type === "rt" && grp.code) {
+    const others = Object.keys(cmp).filter(k => k !== grp.code);
+    if (!others.length) badges.push(`<span class="badge good">tylko z: ${esc(grp.name)}</span>`);
+    for (const k of others) {
+      const mine = t.total + (grp.access_pln || 0), theirs = cmp[k].with_access, g2 = COMPARE.groups[k];
+      if (theirs + 20 < mine) badges.push(`<span class="badge bad" title="Najtańszy wyjazd na ten kierunek, łącznie z dojazdem do lotniska">z: ${esc(g2.name)} od ${theirs} zł/os. (z dojazdem)</span>`);
+    }
+  }
   if (grp.access_pln) badges.push(`<span class="badge" title="${esc(grp.access_note)}">🚆 dojazd do ${esc(grp.name)}: ok. ${grp.access_pln} zł/os. tam i z powrotem</span>`);
   if (transitBadge(t.dest)) badges.push(transitBadge(t.dest));
   if (t.back && t.back !== t.dest && transitBadge(t.back)) badges.push(transitBadge(t.back));
@@ -479,6 +488,8 @@ $("#f-reset").onclick = () => {
 };
 $("#more").onclick = () => { shown += 60; render(); };
 
+let COMPARE = null;
+fetch("compare.json", { cache: "no-store" }).then(r => r.ok ? r.json() : null).then(c => { COMPARE = c; if (DATA) render(); }).catch(() => {});
 // Miasto wylotu: ?z=KRK w adresie (domyślnie Warszawa)
 const GROUP = (new URLSearchParams(location.search).get("z") || "").toUpperCase();
 function cityLinks(cfg) {

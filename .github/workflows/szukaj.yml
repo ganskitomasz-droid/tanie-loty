@@ -84,6 +84,7 @@ jobs:
       - name: Strona
         run: |
           cp site/index.html public/index.html
+          python -m tanie_loty.compare public || true
           ls -la public
           test -f public/results.json
       - uses: actions/upload-pages-artifact@v3

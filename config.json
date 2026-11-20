@@ -26,5 +26,26 @@
   "cost": {
     "_opis": "Szacunek ceny pokoju 2-os./noc przy średnim poziomie cen UE (wskaźnik 100); dla kraju przeliczany wskaźnikiem cen restauracji i hoteli Eurostatu.",
     "hotel_room_eur": 60
-  }
+  },
+  "groups": {
+    "_opis": "Miejsca wylotu wyszukiwane osobno. access_pln = koszt dojazdu do lotniska startowego z domu (tam i z powrotem, na osobę) — dla porównania z Warszawą.",
+    "WAW": {
+      "name": "Warszawa",
+      "origins": [
+        "WAW",
+        "WMI"
+      ],
+      "access_pln": 0,
+      "access_note": ""
+    },
+    "KRK": {
+      "name": "Kraków",
+      "origins": [
+        "KRK"
+      ],
+      "access_pln": 230,
+      "access_note": "pociąg Warszawa–Kraków + kolej na lotnisko, tam i z powrotem (szacunek)"
+    }
+  },
+  "default_group": "WAW"
 }

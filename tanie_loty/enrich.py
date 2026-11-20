@@ -222,14 +222,16 @@ def price_levels(http: Http, cache: Cache) -> tuple[dict[str, float], str]:
 
 
 # --- historia cen ------------------------------------------------------------------------
-def update_history(http: Http, url: str | None, fares: list[Fare]) -> tuple[dict, dict]:
+def update_history(http: Http, url: str | None, fares: list[Fare], group: str = "WAW") -> tuple[dict, dict]:
     """Pobiera poprzednią historię z opublikowanej strony, dopisuje bieżące ceny.
     Zwraca (historia do zapisania, {klucz lotu: info dla strony})."""
     hist = {"runs": [], "fares": {}}
     if url:
-        prev = http.json("GET", url.rstrip("/") + "/history.json", "history", timeout=30)
-        if isinstance(prev, dict) and "fares" in prev:
-            hist = prev
+        for name in (f"history-{group}.json",) + (("history.json",) if group == "WAW" else ()):
+            prev = http.json("GET", url.rstrip("/") + "/" + name, "history", timeout=30)
+            if isinstance(prev, dict) and "fares" in prev:
+                hist = prev
+                break
     today = dt.date.today().isoformat()
     now = dt.datetime.now(dt.timezone.utc).isoformat(timespec="minutes")
     hist["runs"] = (hist.get("runs") or [])[-200:] + [now]

@@ -35,6 +35,14 @@ def gh_annotation(level: str, title: str, msg: str) -> None:
 
 def load_config(args) -> dict:
     cfg = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+    group = (getattr(args, "group", None) or cfg.get("default_group") or "WAW").upper()
+    g = (cfg.get("groups") or {}).get(group)
+    if g:
+        cfg["origins"] = g["origins"]
+        cfg["group"] = {"code": group, "name": g.get("name", group), "access_pln": g.get("access_pln", 0),
+                        "access_note": g.get("access_note", "")}
+    else:
+        cfg["group"] = {"code": group, "name": group, "access_pln": 0, "access_note": ""}
     for key in ("origins", "months", "nights_min", "nights_max", "openjaw_km", "max_total", "providers"):
         val = getattr(args, key)
         if val not in (None, ""):
@@ -102,6 +110,7 @@ def main(argv=None) -> int:
     p.add_argument("--max-total", dest="max_total", help="maks. cena całej podróży w PLN (0 = bez limitu)")
     p.add_argument("--providers", help="ryanair,wizzair")
     p.add_argument("--out", default="public", help="katalog wynikowy")
+    p.add_argument("--group", help="miejsce wylotu z config.json → groups (np. WAW, KRK)")
     p.add_argument("--demo", action="store_true", help="dane losowe, bez sieci")
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args(argv)
@@ -183,7 +192,10 @@ def main(argv=None) -> int:
                                          "min": t[k]["price"] - rnd.randint(0, 20), "chg": rnd.choice([-40, -10, 0, 15, 30])}
                  for lst in trips.values() for t in lst for k in ("out", "ret") if k in t}
     else:
-        cache = enrich.Cache(ROOT / "cache" / "enrich.json")
+        cpath = ROOT / "cache" / f"enrich-{cfg['group']['code']}.json"
+        if not cpath.exists() and (ROOT / "cache" / "enrich.json").exists():
+            cpath.write_bytes((ROOT / "cache" / "enrich.json").read_bytes())  # przejęcie starej pamięci
+        cache = enrich.Cache(cpath)
         hinfo = {}
         try:
             centres = enrich.city_centres(http, airports, dests, cache)
@@ -241,7 +253,7 @@ def main(argv=None) -> int:
                 log.exception("Błąd Xotelo")
                 enrich_notes.append(f"noclegi Xotelo: błąd {e}")
         try:
-            hist, hinfo = enrich.update_history(http, cfg.get("pages_url"), fares)
+            hist, hinfo = enrich.update_history(http, cfg.get("pages_url"), fares, cfg["group"]["code"])
         except Exception as e:
             log.exception("Błąd historii cen")
             enrich_notes.append(f"historia: {e}")
@@ -308,11 +320,14 @@ def main(argv=None) -> int:
                "hotels": hotel_offers, "hotel_criteria": {k: v for k, v in cfg.get("hotels", {}).items()
                                                           if not k.startswith("_")}}
     body = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
-    (out / "results.json").write_text(body, encoding="utf-8")
+    gcode = cfg["group"]["code"]
+    (out / f"results-{gcode}.json").write_text(body, encoding="utf-8")
+    if gcode == cfg.get("default_group", "WAW"):
+        (out / "results.json").write_text(body, encoding="utf-8")   # zgodność ze starszymi linkami
     meta["size_mb"] = round(len(body.encode()) / 1e6, 1)
     shutil.copy(ROOT / "site" / "index.html", out / "index.html")
     if hist:
-        (out / "history.json").write_text(json.dumps(hist, separators=(",", ":")), encoding="utf-8")
+        (out / f"history-{gcode}.json").write_text(json.dumps(hist, separators=(",", ":")), encoding="utf-8")
 
     summary = "\n".join(
         [f"{pr['name']}: {pr['routes']} tras, {pr['fares']} cen" +

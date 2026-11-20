@@ -147,7 +147,7 @@
   "DXB": ["metro", 2, 25, "Dubaj"],
   "AUH": ["autobus A1", 1, 50, "Abu Zabi"],
   "RAK": ["autobus 19", 3.5, 20, "Marrakesz"],
-  "AGA": ["autobus / taksówka", 4, 40, "Agadir"],
+  "AGA": ["taksówka (słaba komunikacja publiczna)", 22, 35, "Agadir"],
   "FEZ": ["autobus 16", 0.5, 30, "Fez"],
   "RBA": ["taksówka", 15, 20, "Rabat"],
   "TNG": ["taksówka", 15, 25, "Tanger"],

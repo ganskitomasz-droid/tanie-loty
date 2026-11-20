@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tanie loty z Warszawy</title>
+<title>Tanie loty</title>
 <style>
   :root {
     --bg: #f6f5f1; --card: #fff; --ink: #1d1d1b; --muted: #6b6a65; --line: #e4e2db;
@@ -19,6 +19,11 @@
   header { padding: 28px 20px 8px; max-width: 1100px; margin: 0 auto; }
   h1 { margin: 0; font-size: 28px; letter-spacing: -.02em; }
   .sub { color: var(--muted); margin-top: 4px; font-size: 14px; }
+  .cities { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .cities a { border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 5px 12px;
+              border-radius: 999px; text-decoration: none; font-size: 14px; }
+  .cities a.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .cities small { opacity: .75; }
   main { max-width: 1100px; margin: 0 auto; padding: 0 20px 60px; }
   .tabs { display: flex; gap: 6px; margin: 18px 0 12px; flex-wrap: wrap; }
   .tab { border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 8px 14px;
@@ -92,7 +97,8 @@
 </head>
 <body>
 <header>
-  <h1>Tanie loty z Warszawy</h1>
+  <h1 id="title">Tanie loty</h1>
+  <div class="cities" id="cities"></div>
   <div class="sub" id="sub">Wczytuję wyniki…</div>
 </header>
 <main>
@@ -191,9 +197,10 @@ function cost(t) {
   const transfer = tr != null && tb != null ? Math.round(tr + tb) : null;   // przylot → centrum i centrum → lotnisko powrotu
   const exact = offerMatches(t, o) && o.adults === a && n === a;
   const lodgingPP = exact ? o.total / n : lodging;
-  const total = Math.round(t.total + lodgingPP + (transfer || 0)); // loty + nocleg + dojazd na osobę
+  const access = (DATA.meta.config.group || {}).access_pln || 0;   // dojazd z domu do lotniska startowego
+  const total = Math.round(t.total + lodgingPP + (transfer || 0) + access); // loty + nocleg + dojazdy na osobę
   return { total, room: Math.round(room), lodging: Math.round(lodgingPP), nights, pli, known: !!(DATA.pli || {})[cc],
-           real: !!real, exact, transfer, ppn: Math.round(lodgingPP / nights) };
+           real: !!real, exact, transfer, access, ppn: Math.round(lodgingPP / nights) };
 }
 
 // --- dojazd z lotniska do centrum komunikacją publiczną --------------------------------------
@@ -311,10 +318,12 @@ function card(t) {
   const badges = [...priceBadges(t)];
   if (w) badges.push(`<span class="badge">${w.html}</span>`);
   if (cen) badges.push(`<span class="badge" title="Odległość w linii prostej">✈ lotnisko ok. ${Math.round(cen.km)} km od centrum ${esc(cen.name)}</span>`);
+  const grp = DATA.meta.config.group || {};
+  if (grp.access_pln) badges.push(`<span class="badge" title="${esc(grp.access_note)}">🚆 dojazd do ${esc(grp.name)}: ok. ${grp.access_pln} zł/os. tam i z powrotem</span>`);
   if (transitBadge(t.dest)) badges.push(transitBadge(t.dest));
   if (t.back && t.back !== t.dest && transitBadge(t.back)) badges.push(transitBadge(t.back));
   return `<div class="trip${hb ? "" : " noh"}">
-    <div class="price">${t.total * seats()}<small> zł</small>${seats() > 1 ? `<span class="pp">${t.total} zł/os. × ${seats()}</span>` : ""}${c ? `<span class="cost" title="Na osobę: loty ${t.total} zł + nocleg ${c.lodging} zł (${c.nights} ${c.nights === 1 ? "noc" : "nocy"}, ok. ${c.ppn} zł/os./noc, pokój ok. ${c.room} zł/noc — ${c.exact ? "prawdziwa najtańsza oferta spełniająca kryteria" : c.real ? "na podstawie prawdziwej oferty w tym mieście z innego terminu" : `szacunek z poziomu cen kraju ${c.pli}${c.known ? "" : ", brak danych — średnia UE"}; UE = 100`})${c.transfer != null ? ` + dojazd lotnisko↔centrum ${c.transfer} zł (komunikacja publiczna, tam i z powrotem)` : ""}.">Loty + nocleg${c.transfer != null ? " + dojazd" : ""} ${c.exact ? "=" : "≈"} ${c.total.toLocaleString("pl-PL")} zł<small>/os. ${c.exact ? "(prawdziwe ceny)" : c.real ? "(nocleg wg oferty z innego terminu)" : "(nocleg szacunkowo)"}</small></span>` : ""}</div>
+    <div class="price">${t.total * seats()}<small> zł</small>${seats() > 1 ? `<span class="pp">${t.total} zł/os. × ${seats()}</span>` : ""}${c ? `<span class="cost" title="Na osobę: loty ${t.total} zł + nocleg ${c.lodging} zł (${c.nights} ${c.nights === 1 ? "noc" : "nocy"}, ok. ${c.ppn} zł/os./noc, pokój ok. ${c.room} zł/noc — ${c.exact ? "prawdziwa najtańsza oferta spełniająca kryteria" : c.real ? "na podstawie prawdziwej oferty w tym mieście z innego terminu" : `szacunek z poziomu cen kraju ${c.pli}${c.known ? "" : ", brak danych — średnia UE"}; UE = 100`})${c.transfer != null ? ` + dojazd lotnisko↔centrum ${c.transfer} zł (komunikacja publiczna, tam i z powrotem)` : ""}${c.access ? ` + dojazd do lotniska startowego ${c.access} zł (${DATA.meta.config.group.access_note})` : ""}.">Loty + nocleg${c.transfer != null ? " + dojazd" : ""} ${c.exact ? "=" : "≈"} ${c.total.toLocaleString("pl-PL")} zł<small>/os. ${c.exact ? "(prawdziwe ceny)" : c.real ? "(nocleg wg oferty z innego terminu)" : "(nocleg szacunkowo)"}</small></span>` : ""}</div>
     <div><div class="dest">${title}</div><div class="when">${when}${extra}</div>${badges.length ? `<div class="badges">${badges.join("")}</div>` : ""}</div>
     <div class="legs">${leg(t.out, "Wylot")}${t.ret ? leg(t.ret, "Powrót") : ""}
     ${sameTrip(t) ? `<div class="book"><a href="${esc(bookUrl(t.out, t.ret))}" target="_blank" rel="noopener">Sprawdź w obie strony w ${esc(t.out.carrier)} ↗</a></div>` : ""}</div>
@@ -470,8 +479,19 @@ $("#f-reset").onclick = () => {
 };
 $("#more").onclick = () => { shown += 60; render(); };
 
-fetch("results.json", { cache: "no-store" }).then(r => r.json()).then(init)
-  .catch(() => { $("#sub").textContent = "Nie udało się wczytać wyników (results.json)."; });
+// Miasto wylotu: ?z=KRK w adresie (domyślnie Warszawa)
+const GROUP = (new URLSearchParams(location.search).get("z") || "").toUpperCase();
+function cityLinks(cfg) {
+  const groups = Object.entries(cfg.groups || {}).filter(([k]) => !k.startsWith("_"));
+  const cur = (cfg.group || {}).code;
+  $("#title").textContent = `Tanie loty z: ${(cfg.group || {}).name || "Warszawa"}`;
+  $("#cities").innerHTML = groups.map(([k, g]) =>
+    `<a href="?z=${k}" class="${k === cur ? "on" : ""}">✈ ${esc(g.name)}${g.access_pln ? ` <small>(+${g.access_pln} zł dojazd)</small>` : ""}</a>`).join("");
+}
+fetch(GROUP ? `results-${GROUP}.json` : "results.json", { cache: "no-store" })
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(d => { cityLinks(d.meta.config); init(d); })
+  .catch(() => { $("#sub").textContent = GROUP ? `Brak wyników dla ${GROUP} — pierwsze wyszukiwanie może jeszcze trwać.` : "Nie udało się wczytać wyników."; });
 </script>
 </body>
 </html>

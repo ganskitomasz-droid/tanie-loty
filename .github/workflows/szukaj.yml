@@ -9,9 +9,6 @@ on:
     paths: ["tanie_loty/**", "site/**", "config.json", ".github/workflows/szukaj.yml"]
   workflow_dispatch:
     inputs:
-      origins:
-        description: "Lotniska startowe (np. WAW,WMI) — puste = z config.json"
-        required: false
       months:
         description: "Ile miesięcy do przodu"
         required: false
@@ -38,6 +35,10 @@ jobs:
   search:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [WAW, KRK]   # miejsca wylotu z config.json → groups
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,31 +46,52 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      - name: Pamięć podręczna (klimat, centra miast, poziom cen)
+      - name: Pamięć podręczna (klimat, centra miast, poziom cen, noclegi)
         uses: actions/cache@v4
         with:
           path: cache
-          key: enrich-${{ github.run_id }}
-          restore-keys: enrich-
-      - name: Wyszukiwanie
+          key: enrich-${{ matrix.group }}-${{ github.run_id }}
+          restore-keys: |
+            enrich-${{ matrix.group }}-
+            enrich-
+      - name: Wyszukiwanie (${{ matrix.group }})
         env:
-          IN_ORIGINS: ${{ inputs.origins }}
           IN_MONTHS: ${{ inputs.months }}
           IN_NMIN: ${{ inputs.nights_min }}
           IN_NMAX: ${{ inputs.nights_max }}
           IN_MAX: ${{ inputs.max_total }}
           LITEAPI_KEY: ${{ secrets.LITEAPI_KEY }}
         run: |
-          python -m tanie_loty --out public \
-            --origins "$IN_ORIGINS" --months "$IN_MONTHS" \
+          python -m tanie_loty --out public --group "${{ matrix.group }}" --months "$IN_MONTHS" \
             --nights-min "$IN_NMIN" --nights-max "$IN_NMAX" --max-total "$IN_MAX"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: results-${{ matrix.group }}
+          path: public
+          retention-days: 2
+
+  publish:
+    needs: search
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: results-*
+          path: public
+          merge-multiple: true
+      - name: Strona
+        run: |
+          cp site/index.html public/index.html
+          ls -la public
+          test -f public/results.json
       - uses: actions/upload-pages-artifact@v3
-        if: always()
         with:
           path: public
 
   deploy:
-    needs: search
+    needs: publish
     runs-on: ubuntu-latest
     environment:
       name: github-pages

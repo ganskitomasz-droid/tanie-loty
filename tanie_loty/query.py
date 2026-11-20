@@ -29,8 +29,53 @@ def load(url: str) -> dict:
         return json.load(r)
 
 
+def routes(q: dict) -> int:
+    """Porównanie siatki połączeń w dwóch miesiącach: nowe / znikające trasy z danych lotnisk."""
+    base = q["pages_url"].rstrip("/")
+    legs, airports = [], {}
+    for g in q["groups"]:
+        data = load(f"{base}/results-{g}.json")
+        legs += data["legs"]
+        airports.update(data["airports"])
+    m1, m2 = q["months"]
+    days = {}
+    for l in legs:
+        if l["from"] in q["origins"]:
+            k = (l["carrier"], l["from"], l["to"])
+            days.setdefault(k, {}).setdefault(l["date"][:7], set()).add(l["date"])
+    city = lambda c: (airports.get(c) or {}).get("city") or c
+    new, gone, more = [], [], []
+    for (car, o, dst), by in sorted(days.items()):
+        a, b = len(by.get(m1, ())), len(by.get(m2, ()))
+        first = min(by.get(m2, {"-"}))
+        label = f"{car} {o}→{city(dst)} ({dst})"
+        if not a and b:
+            new.append(f"{label}: od {first}, {b} dni z lotami w {m2}")
+        elif a and not b:
+            gone.append(f"{label}: ostatni {max(by[m1])}, {a} dni w {m1}")
+        elif a and b >= 2 * a + 4:
+            more.append(f"{label}: {a} → {b} dni z lotami")
+    # trasy w obie strony nieobecne w jednym miesiącu u żadnego przewoźnika (z dowolnego lotniska grupy)
+    lines = [f"NOWE w {m2} (brak lotów w {m1}): {len(new)}"] + new + \
+            [f"ZNIKAJĄ w {m2} (były w {m1}): {len(gone)}"] + gone + \
+            [f"WIĘCEJ LOTÓW w {m2}: {len(more)}"] + more
+    print("\n".join(lines))
+    if os.environ.get("GITHUB_ACTIONS"):
+        chunk = []
+        for ln in lines:
+            chunk.append(ln)
+            if sum(len(x) + 1 for x in chunk) > 3000:
+                print("::notice title=Siatka::" + "%0A".join(x.replace("%", "%25") for x in chunk[:-1]))
+                chunk = [ln]
+        if chunk:
+            print("::notice title=Siatka::" + "%0A".join(x.replace("%", "%25") for x in chunk))
+    return 0
+
+
 def main(path: str) -> int:
     q = json.load(open(path, encoding="utf-8"))
+    if q.get("analysis") == "routes":
+        return routes(q)
     base = q["pages_url"].rstrip("/")
     legs, airports = [], {}
     for g in q["groups"]:

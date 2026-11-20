@@ -28,7 +28,7 @@
     "hotel_room_eur": 60
   },
   "groups": {
-    "_opis": "Miejsca wylotu wyszukiwane osobno. access_pln = koszt dojazdu do lotniska startowego z domu (tam i z powrotem, na osobę) — dla porównania z Warszawą.",
+    "_opis": "Miejsca wylotu wyszukiwane osobno i pokazywane razem na stronie.",
     "WAW": {
       "name": "Warszawa",
       "origins": [
@@ -43,8 +43,8 @@
       "origins": [
         "KRK"
       ],
-      "access_pln": 230,
-      "access_note": "pociąg Warszawa–Kraków + kolej na lotnisko, tam i z powrotem (szacunek)"
+      "access_pln": 0,
+      "access_note": ""
     }
   },
   "default_group": "WAW"

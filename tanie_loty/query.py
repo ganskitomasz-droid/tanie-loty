@@ -59,7 +59,7 @@ def main(path: str) -> int:
             if r["to"] not in allowed:
                 continue
             dist = 0 if r["from"] == o["to"] else km(airports.get(o["to"]), airports.get(r["from"]))
-            if dist > oj_km:
+            if dist > oj_km or (q.get("openjaw_only") and not dist):
                 continue
             if dist and q.get("openjaw_same_country") and \
                     (airports.get(o["to"]) or {}).get("cc") != (airports.get(r["from"]) or {}).get("cc"):

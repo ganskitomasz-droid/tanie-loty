@@ -1,0 +1,86 @@
+{
+  "_opis": "Barcelona w styczniu 2027 (od 7.01), 1–4 noce, wylot WAW/WMI/KRK, powrót do Warszawy lub Krakowa; Barcelona, Girona, Reus (open-jaw między nimi)",
+  "pages_url": "https://ganskitomasz-droid.github.io/tanie-loty/",
+  "groups": [
+    "WAW",
+    "KRK"
+  ],
+  "out_from": [
+    "WAW",
+    "WMI",
+    "KRK"
+  ],
+  "out_dates": [
+    "2027-01-07",
+    "2027-01-31"
+  ],
+  "out_latest": "23:59",
+  "ret_to_any": [
+    "WAW",
+    "WMI"
+  ],
+  "ret_to_extra": {
+    "KRK": [
+      "KRK"
+    ]
+  },
+  "ret_latest_date": "2027-02-03",
+  "ret_earliest": "07:00",
+  "nights": [
+    1,
+    4
+  ],
+  "openjaw_km": 150,
+  "countries": [
+    "ES",
+    "PT",
+    "IT",
+    "GR",
+    "HR",
+    "ME",
+    "AL",
+    "MK",
+    "BG",
+    "RS",
+    "BA",
+    "SI",
+    "TR"
+  ],
+  "exclude_airports": [
+    "BGY",
+    "MXP",
+    "LIN",
+    "VCE",
+    "TSF",
+    "TRN",
+    "GOA",
+    "BLQ",
+    "VRN",
+    "TRS",
+    "CUF",
+    "BZO",
+    "VBS",
+    "NAP",
+    "FCO",
+    "CIA",
+    "CTA",
+    "MLA",
+    "LCA",
+    "PFO",
+    "ECN",
+    "PMI",
+    "SOF",
+    "DBV",
+    "PSR",
+    "ZAG"
+  ],
+  "per_dest": 12,
+  "limit": 40,
+  "openjaw_same_country": true,
+  "ret_earliest_date": "2027-01-08",
+  "only_airports": [
+    "BCN",
+    "GRO",
+    "REU"
+  ]
+}

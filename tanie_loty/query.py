@@ -96,6 +96,8 @@ def main(path: str) -> int:
         a = airports.get(code) or {}
         if code in q.get("exclude_airports", []):
             return False
+        if q.get("only_airports") and code not in q["only_airports"]:
+            return False
         return a.get("cc") in q["countries"]
 
     outs = [l for l in legs if l["from"] in q["out_from"] and q["out_dates"][0] <= l["date"] <= q["out_dates"][1]

@@ -1,0 +1,43 @@
+{
+  "_opis": "Londyn — najtańsze terminy w całym przeszukanym okresie, 2–4 noce, z Warszawy i do Warszawy",
+  "pages_url": "https://ganskitomasz-droid.github.io/tanie-loty/",
+  "groups": [
+    "WAW"
+  ],
+  "out_from": [
+    "WAW",
+    "WMI"
+  ],
+  "out_dates": [
+    "2026-11-22",
+    "2027-02-15"
+  ],
+  "out_latest": "23:59",
+  "ret_to_any": [
+    "WAW",
+    "WMI"
+  ],
+  "ret_to_extra": {},
+  "ret_latest_date": "2027-02-17",
+  "ret_earliest": "07:00",
+  "nights": [
+    2,
+    4
+  ],
+  "openjaw_km": 60,
+  "openjaw_same_country": true,
+  "countries": [
+    "GB"
+  ],
+  "only_airports": [
+    "STN",
+    "LTN",
+    "LGW",
+    "LHR",
+    "SEN",
+    "LCY"
+  ],
+  "exclude_airports": [],
+  "per_dest": 20,
+  "limit": 40
+}

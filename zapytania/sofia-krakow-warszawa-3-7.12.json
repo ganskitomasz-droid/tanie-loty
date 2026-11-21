@@ -1,0 +1,38 @@
+{
+  "_opis": "Sofia 3–7.12: wylot z Krakowa, powrót do Warszawy, 1–4 noce",
+  "pages_url": "https://ganskitomasz-droid.github.io/tanie-loty/",
+  "groups": [
+    "WAW",
+    "KRK"
+  ],
+  "out_from": [
+    "KRK"
+  ],
+  "out_dates": [
+    "2026-12-03",
+    "2026-12-06"
+  ],
+  "out_latest": "23:59",
+  "ret_to_any": [
+    "WAW",
+    "WMI"
+  ],
+  "ret_to_extra": {},
+  "ret_latest_date": "2026-12-07",
+  "ret_earliest": "00:00",
+  "nights": [
+    1,
+    4
+  ],
+  "openjaw_km": 0,
+  "countries": [
+    "BG"
+  ],
+  "only_airports": [
+    "SOF"
+  ],
+  "exclude_airports": [],
+  "per_dest": 15,
+  "limit": 15,
+  "ret_earliest_date": "2026-12-04"
+}

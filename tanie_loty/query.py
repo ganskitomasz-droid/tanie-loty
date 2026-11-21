@@ -100,9 +100,11 @@ def main(path: str) -> int:
             return False
         return a.get("cc") in q["countries"]
 
-    outs = [l for l in legs if l["from"] in q["out_from"] and q["out_dates"][0] <= l["date"] <= q["out_dates"][1]
+    owd, rwd = q.get("out_weekdays"), q.get("ret_weekdays")  # 0 = poniedziałek … 6 = niedziela
+    outs = [l for l in legs if (not owd or d(l["date"]).weekday() in owd) and l["from"] in q["out_from"] and q["out_dates"][0] <= l["date"] <= q["out_dates"][1]
             and (l.get("time") or "99") <= q["out_latest"] and country_ok(l["to"])]
     rets = [l for l in legs if l["to"] in q["ret_to_any"] + sum(q.get("ret_to_extra", {}).values(), [])
+            and (not rwd or d(l["date"]).weekday() in rwd)
             and q.get("ret_earliest_date", "0000") <= l["date"] <= q["ret_latest_date"] and (l.get("time") or "00") >= q["ret_earliest"]
             and country_ok(l["from"])]
     oj_km = q.get("openjaw_km", 0)

@@ -57,4 +57,27 @@ def run(q: dict) -> list[str]:
     for wk in sorted(best):
         c = best[wk]
         lines.append(f"tydz. {wk}: {c[0]} zł | {c[1]} n. | {fmt(c[2])} | {fmt(c[3])}")
+    if q.get("by_carrier"):
+        lines += _by_carrier(fares, home, combos, fmt)
     return lines
+
+
+def _by_carrier(fares, home, combos, fmt) -> list[str]:
+    """Porównanie przewoźników: ceny w jedną stronę per kierunek i miesiąc + najtańszy powrót tą samą linią."""
+    import statistics
+    out = ["PORÓWNANIE PRZEWOŹNIKÓW (w jedną stronę, zł):"]
+    groups = {}
+    for f in fares:
+        kier = "tam" if f.origin in home else "powrót"
+        groups.setdefault((f.carrier, f"{f.origin}-{f.dest}", f.date[:7]), []).append(f.price)
+    for (c, r, m), ps in sorted(groups.items()):
+        out.append(f"{c} {r} {m}: dni {len(ps)}, min {round(min(ps))}, mediana {round(statistics.median(ps))}")
+    out.append("NAJTAŃSZE TAM-I-Z-POWROTEM TĄ SAMĄ LINIĄ:")
+    for c in sorted({f.carrier for f in fares}):
+        same = [x for x in combos if x[2].carrier == c and x[3].carrier == c]
+        if same:
+            x = same[0]
+            out.append(f"{c}: {x[0]} zł | {x[1]} n. | {fmt(x[2])} | {fmt(x[3])}")
+            meds = statistics.median([x[0] for x in same])
+            out.append(f"{c}: mediana kombinacji {round(meds)} zł z {len(same)}")
+    return out

@@ -1,0 +1,12 @@
+{
+  "_opis": "Londyn z Warszawy: Ryanair vs Wizz Air, grudzień 2026 – marzec 2027, 2–4 noce",
+  "analysis": "probe",
+  "routes": [["WMI","STN"],["WAW","STN"],["WAW","LTN"],["WMI","LTN"],["WAW","LGW"],["WMI","LGW"]],
+  "from": "2026-12-01",
+  "to": "2027-03-31",
+  "nights": [2, 4],
+  "home": ["WAW","WMI"],
+  "any_return_airport": true,
+  "by_carrier": true,
+  "limit": 15
+}

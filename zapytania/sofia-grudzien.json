@@ -1,0 +1,37 @@
+{
+  "_opis": "Sofia w grudniu 2026 — z Warszawy i do Warszawy, 2–3 noce, wszystkie terminy (porównanie ze styczniem)",
+  "pages_url": "https://ganskitomasz-droid.github.io/tanie-loty/",
+  "groups": [
+    "WAW"
+  ],
+  "out_from": [
+    "WAW",
+    "WMI"
+  ],
+  "out_dates": [
+    "2026-11-22",
+    "2026-12-22"
+  ],
+  "out_latest": "23:59",
+  "ret_to_any": [
+    "WAW",
+    "WMI"
+  ],
+  "ret_to_extra": {},
+  "ret_latest_date": "2026-12-24",
+  "ret_earliest": "07:00",
+  "nights": [
+    2,
+    3
+  ],
+  "openjaw_km": 0,
+  "countries": [
+    "BG"
+  ],
+  "only_airports": [
+    "SOF"
+  ],
+  "exclude_airports": [],
+  "per_dest": 15,
+  "limit": 15
+}

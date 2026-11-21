@@ -1,0 +1,34 @@
+{
+  "_opis": "Londyn w marcu 2027 — na żywo, 2–4 noce, z Warszawy",
+  "analysis": "probe",
+  "routes": [
+    [
+      "WMI",
+      "STN"
+    ],
+    [
+      "WAW",
+      "STN"
+    ],
+    [
+      "WAW",
+      "LTN"
+    ],
+    [
+      "WMI",
+      "LTN"
+    ]
+  ],
+  "from": "2027-03-01",
+  "to": "2027-03-31",
+  "nights": [
+    2,
+    4
+  ],
+  "home": [
+    "WAW",
+    "WMI"
+  ],
+  "any_return_airport": true,
+  "limit": 25
+}

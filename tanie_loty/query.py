@@ -83,6 +83,20 @@ def main(path: str) -> int:
     q = json.load(open(path, encoding="utf-8"))
     if q.get("analysis") == "routes":
         return routes(q)
+    if q.get("analysis") == "probe":
+        from .probe import run
+        lines = [clean(x) for x in run(q)]
+        print("\n".join(lines))
+        if os.environ.get("GITHUB_ACTIONS"):
+            chunk = []
+            for ln in lines:
+                chunk.append(ln)
+                if sum(len(x) + 1 for x in chunk) > 3000:
+                    print("::notice title=Na żywo::" + "%0A".join(x.replace("%", "%25") for x in chunk[:-1]))
+                    chunk = [ln]
+            if chunk:
+                print("::notice title=Na żywo::" + "%0A".join(x.replace("%", "%25") for x in chunk))
+        return 0
     base = q["pages_url"].rstrip("/")
     legs, airports = [], {}
     for g in q["groups"]:

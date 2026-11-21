@@ -98,11 +98,15 @@ def main(path: str) -> int:
                 print("::notice title=Na żywo::" + "%0A".join(x.replace("%", "%25") for x in chunk))
         return 0
     base = q["pages_url"].rstrip("/")
-    legs, airports = [], {}
+    legs, airports, extra = [], {}, {"pli": {}, "hotels": {}, "cost": {}, "eur": 4.3}
     for g in q["groups"]:
         data = load(f"{base}/results-{g}.json")
         legs += data["legs"]
         airports.update(data["airports"])
+        extra["pli"].update(data.get("pli") or {})
+        extra["hotels"].update(data.get("hotels") or {})
+        extra["cost"] = data.get("cost") or extra["cost"]
+        extra["eur"] = data.get("eur") or extra["eur"]
     uniq = {json.dumps({k: v for k, v in l.items() if k != "h"}, sort_keys=True): l for l in legs}
     legs = list(uniq.values())
 
@@ -137,6 +141,52 @@ def main(path: str) -> int:
             n = (d(r["date"]) - d(o.get("arr_date") or o["date"])).days
             if q["nights"][0] <= n <= q["nights"][1]:
                 res.append((o["price"] + r["price"], n, o, r, round(dist)))
+    if q.get("rank"):
+        rk = q["rank"]
+        persons, factor = rk.get("persons", 2), rk.get("room_factor", 1.0)
+
+        def scored(t):
+            total, n, o, r, dist = t
+            a = airports.get(o["to"]) or {}
+            h = extra["hotels"].get(o["to"])
+            if h and h.get("per_night"):
+                room = h["per_night"] / max(1, math.ceil(h.get("adults", 2) / 2))
+                src = "oferta"
+            else:
+                room = extra["cost"].get("hotel_room_eur", 60) * (extra["pli"].get(a.get("cc"), 100) / 100) * extra["eur"]
+                src = "szac."
+            lodging = room * factor * n / persons
+            tr = (a.get("transit") or {}).get("eur")
+            transfer = 2 * tr * extra["eur"] if tr else 0
+            mm = (o.get("arr_date") or o["date"])[5:7]
+            tmax = ((a.get("climate") or {}).get(mm) or {}).get("tmax")
+            cost = total + lodging + transfer
+            score = cost - rk.get("zl_per_degree", 25) * ((tmax if tmax is not None else 10) - rk.get("base_temp", 12))
+            return (round(score), round(cost), round(lodging), src, tmax, t)
+
+        ranked = sorted((scored(t) for t in res), key=lambda x: x[0])
+        per, lines = {}, []
+        for sc, cost, lodg, src, tmax, (total, n, o, r, dist) in ranked:
+            k = o["to"]
+            if per.get(k):
+                continue
+            per[k] = 1
+            a = airports.get(o["to"]) or {}
+            lines.append(clean(f"wynik {sc} | {a.get('city') or k} ({k}) | {tmax}°C | razem ≈{cost} zł/os. (loty {total} + nocleg {lodg} {src}) | {n} n. | "
+                               f"{o['carrier']} {o['from']}→{o['to']} {o['date']} {o.get('time') or '?'} | "
+                               f"{r['carrier']} {r['from']}→{r['to']} {r['date']} {r.get('time') or '?'}"))
+        lines = lines[: q.get("limit", 40)]
+        print("\n".join(lines))
+        if os.environ.get("GITHUB_ACTIONS"):
+            chunk = []
+            for ln in lines:
+                chunk.append(ln)
+                if sum(len(x) + 1 for x in chunk) > 3000:
+                    print("::notice title=Ranking::" + "%0A".join(x.replace("%", "%25") for x in chunk[:-1]))
+                    chunk = [ln]
+            if chunk:
+                print("::notice title=Ranking::" + "%0A".join(x.replace("%", "%25") for x in chunk))
+        return 0
     res.sort(key=lambda x: x[0])
     per, out = {}, []
     for t in res:
